@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>מערכת הדמיית טעינה 3D</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="login-screen" class="overlay">
+    <div class="modal">
+        <h2>כניסה למערכת</h2>
+        <input type="text" id="username" placeholder="שם משתמש">
+        <input type="password" id="password" placeholder="סיסמה">
+        <button id="loginBtn">התחבר</button>
+    </div>
+</div>
+
+<div id="menu-screen" class="overlay" style="display:none;">
+    <div class="modal">
+        <h2>שלום, <span id="user-display"></span></h2>
+        <button id="createNewBtn">צור סידור חדש +</button>
+        <hr>
+        <h3>היסטוריית סידורים:</h3>
+        <div id="history-list">
+            <p>טוען נתונים...</p>
+        </div>
+    </div>
+</div>
+
+<div id="creator-screen" class="overlay" style="display:none;">
+    <div class="modal">
+        <h3>הגדרות מכולה</h3>
+        <div style="display: flex; gap: 10px;">
+            <input type="number" id="contL" placeholder="אורך (L)" value="1200">
+            <input type="number" id="contW" placeholder="רוחב (W)" value="235">
+            <input type="number" id="contH" placeholder="גובה (H)" value="269">
+        </div>
+        <div class="input-container">
+            <h3>רשימת ארגזים</h3>
+            <h3>הוספת סוג ארגז</h3>
+            <div class="box-input-row">
+                <input type="number" id="newBoxL" placeholder="אורך">
+                <input type="number" id="newBoxW" placeholder="רוחב">
+                <input type="number" id="newBoxH" placeholder="גובה">
+                <input type="number" id="newBoxQty" placeholder="כמות">
+                <button id="addBoxBtn">+</button>
+            </div>
+
+            <h3>רשימת הארגזים לסידור:</h3>
+            <div id="boxesTableContainer">
+                <table id="boxesTable">
+                    <thead>
+                    <tr>
+                        <th>אורך</th>
+                        <th>רוחב</th>
+                        <th>גובה</th>
+                        <th>כמות</th>
+                        <th>פעולה</th>
+                    </tr>
+                    </thead>
+                    <tbody id="boxesTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <button id="calculateBtn">חשב והצג הדמיה</button>
+    </div>
+</div>
+
+<button id="closeVizBtn" style="display:none; position:fixed; top:20px; right:20px; z-index:2000;">סגור הדמיה</button>
+
+<script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.150.1/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.150.1/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
