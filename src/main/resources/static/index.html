@@ -31,43 +31,42 @@
 <div id="creator-screen" class="overlay" style="display:none;">
     <div class="modal">
         <h3>הגדרות מכולה</h3>
-        <div style="display: flex; gap: 10px;">
-            <input type="number" id="contL" placeholder="אורך (L)" value="1200">
-            <input type="number" id="contW" placeholder="רוחב (W)" value="235">
-            <input type="number" id="contH" placeholder="גובה (H)" value="269">
+        <div style="display: flex; gap: 5px;">
+            <input type="number" id="contL" placeholder="אורך" value="1200">
+            <input type="number" id="contW" placeholder="רוחב" value="235">
+            <input type="number" id="contH" placeholder="גובה" value="269">
         </div>
-        <div class="input-container">
-            <h3>רשימת ארגזים</h3>
-            <h3>הוספת סוג ארגז</h3>
-            <div class="box-input-row">
-                <input type="number" id="newBoxL" placeholder="אורך">
-                <input type="number" id="newBoxW" placeholder="רוחב">
-                <input type="number" id="newBoxH" placeholder="גובה">
-                <input type="number" id="newBoxQty" placeholder="כמות">
-                <button id="addBoxBtn">+</button>
-            </div>
 
-            <h3>רשימת הארגזים לסידור:</h3>
-            <div id="boxesTableContainer">
-                <table id="boxesTable">
-                    <thead>
-                    <tr>
-                        <th>אורך</th>
-                        <th>רוחב</th>
-                        <th>גובה</th>
-                        <th>כמות</th>
-                        <th>פעולה</th>
-                    </tr>
-                    </thead>
-                    <tbody id="boxesTableBody">
-                    </tbody>
-                </table>
-            </div>
+        <hr style="width:100%; border:0; border-top:1px solid #444; margin:10px 0;">
+
+        <h3>הוספת סוג ארגז</h3>
+        <input type="number" id="newBoxL" placeholder="אורך">
+        <input type="number" id="newBoxW" placeholder="רוחב">
+        <input type="number" id="newBoxH" placeholder="גובה">
+        <input type="number" id="newBoxQty" placeholder="כמות">
+        <button id="addBoxBtn" style="background: #00ff00; font-size: 20px;">+</button>
+
+        <h3>רשימת הארגזים לסידור:</h3>
+
+        <div class="table-wrapper" id="boxesTableContainer">
+            <table id="boxesTable">
+                <thead>
+                <tr>
+                    <th>אורך</th>
+                    <th>רוחב</th>
+                    <th>גובה</th>
+                    <th>כמות</th>
+                    <th>פעולה</th>
+                </tr>
+                </thead>
+                <tbody id="boxesTableBody">
+                </tbody>
+            </table>
         </div>
+
         <button id="calculateBtn">חשב והצג הדמיה</button>
     </div>
 </div>
-
 <button id="closeVizBtn" style="display:none; position:fixed; top:20px; right:20px; z-index:2000;">סגור הדמיה</button>
 
 <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>

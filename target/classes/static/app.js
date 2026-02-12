@@ -78,6 +78,9 @@ function updateTable() {
             <td><button onclick="removeBox(${index})">מחק</button></td>
         </tr>
     `).join('');
+    const container = document.getElementById('tableContainer') || tbody.parentElement.parentElement;
+    if (container) {
+        container.scrollTop = container.scrollHeight;
 }
 
 // פונקציה למחיקת ארגז מהרשימה
@@ -121,78 +124,128 @@ document.getElementById('calculateBtn').onclick = async () => {
 
 // --- Three.js ---
 let scene, camera, renderer, controls;
+function downloadVideo(lengthBox) {
+        const stream = renderer.domElement.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks = [];
+
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'packing_simulation.webm';
+            a.click();
+            console.log("ההקלטה הסתיימה והורדה.");
+        };
+
+        recorder.start();
+        console.log("הקלטה התחילה...");
+
+        // עוצר את ההקלטה שנייה אחרי שהארגז האחרון נטען
+        setTimeout(() => {
+            recorder.stop();
+        }, 300 * (lengthBox + 1));
+}
 
 function init3D(data, containerDim) {
-    if (renderer) {
-        document.body.removeChild(renderer.domElement);
-    }
+    console.log("--- דוח ארגזים מהשרת ---");
 
+    // 1. ניקוי וחישוב נתונים
+    if (!data || data.length === 0) {
+        console.error("שגיאה: הרשימה שחזרה מהשרת ריקה!");
+    }else {
+        const debugData = data.map((box, i) => ({
+        "ID": box.cargoType,
+        "אורך (L)": (box.rightFrontTop[0] - box.leftBackBottom[0]).toFixed(2),
+        "רוחב (W)": (box.rightFrontTop[1] - box.leftBackBottom[1]).toFixed(2),
+        "גובה (H)": (box.rightFrontTop[2] - box.leftBackBottom[2]).toFixed(2),
+        "שמאל X": box.leftBackBottom[0],
+        "שמאל Y": box.leftBackBottom[1],
+        "שמאל Z": box.leftBackBottom[2],
+        "ימין X": box.rightFrontTop[0],
+        "ימיו Y": box.rightFrontTop[1],
+        "ימין Z": box.rightFrontTop[2]
+
+    }));
+    console.table(debugData);
+
+
+    const containerVolume = containerDim.l * containerDim.w * containerDim.h;
+    let packedVolume = 0;
+    data.forEach(box => {
+        const l = Math.abs(box.rightFrontTop[0] - box.leftBackBottom[0]);
+        const w = Math.abs(box.rightFrontTop[1] - box.leftBackBottom[1]);
+        const h = Math.abs(box.rightFrontTop[2] - box.leftBackBottom[2]);
+        packedVolume += (l * w * h);
+    });
+    const efficiency = ((packedVolume / containerVolume) * 100).toFixed(2);
+
+
+    const statsDiv = document.createElement('div');
+    statsDiv.id = 'stats-panel';
+    statsDiv.style = "position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.8); color:white; padding:15px; border-radius:8px; z-index:100; font-family:Arial;";
+    statsDiv.innerHTML = `
+        <h3 style="margin:0 0 10px 0">סיכום טעינה</h3>
+        <p>מכולה: ${containerDim.l}x${containerDim.w}x${containerDim.h}</p>
+        <p>נצילות: <strong style="color:#00ff00">${efficiency}%</strong></p>
+    `;
+    document.body.appendChild(statsDiv);
+
+    if (renderer) document.body.removeChild(renderer.domElement);
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x111111);
-
-    // מצלמה במיקום רחוק יותר כדי לראות את כל המכולה
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
     camera.position.set(containerDim.l * 1.5, containerDim.h * 1.5, containerDim.w * 1.5);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
-
     controls = new OrbitControls(camera, renderer.domElement);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 
-    // תאורה חזקה יותר
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-    const light = new THREE.PointLight(0xffffff, 1);
-    light.position.set(containerDim.l, containerDim.h * 2, containerDim.w);
-    scene.add(light);
+    // 2. ציור המכולה
+    const containerGeo = new THREE.BoxGeometry(containerDim.l, containerDim.h, containerDim.w);
+    const containerMesh = new THREE.Mesh(containerGeo, new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true }));
+    containerMesh.position.set(containerDim.l / 2, containerDim.h / 2, containerDim.w / 2);
+    scene.add(containerMesh);
 
-    // ציור המכולה (Wireframe)
-    const geo = new THREE.BoxGeometry(containerDim.l, containerDim.h, containerDim.w);
-    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x00ff00, wireframe: true }));
-    // הצבה כך שפינה אחת ב-(0,0,0)
-    mesh.position.set(containerDim.l / 2, containerDim.h / 2, containerDim.w / 2);
-    scene.add(mesh);
+    // 3. הפעלת הקלטה אוטומטית
+    // אנחנו קוראים לזה רגע לפני תחילת האנימציה
+    downloadVideo(data.length);
 
-    // ציור הארגזים - בדיקה אם הנתונים הגיעו
-    console.log("Data received from server:", data);
+    // 4. אנימציית טעינה (כל ארגז מופיע אחרי שנייה אחת)
+    data.forEach((box, index) => {
+        setTimeout(() => {
+            const l = parseFloat((box.rightFrontTop[0] - box.leftBackBottom[0]).toFixed(2));
+            const w = parseFloat((box.rightFrontTop[1] - box.leftBackBottom[1]).toFixed(2));
+            const h = parseFloat((box.rightFrontTop[2] - box.leftBackBottom[2]).toFixed(2));
 
-    if (data && data.length > 0) {
-        data.forEach(box => {
-            // הגנה: בודק גם אותיות גדולות וגם קטנות
-            const xb = box.xB !== undefined ? box.xB : box.xb;
-            const xt = box.xT !== undefined ? box.xT : box.xt;
-            const yb = box.yB !== undefined ? box.yB : box.yb;
-            const yt = box.yT !== undefined ? box.yT : box.yt;
-            const zb = box.zB !== undefined ? box.zB : box.zb;
-            const zt = box.zT !== undefined ? box.zT : box.zt;
+            const geometry = new THREE.BoxGeometry(l, h, w);
+            const mesh = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
+                color: new THREE.Color(`hsl(${box.cargoType * 137}, 70%, 50%)`),
+                transparent: true, opacity: 0.9
+            }));
 
-            const l = xt - xb;
-            const h = zt - zb;
-            const w = yt - yb;
+            mesh.position.set(box.leftBackBottom[0] + l/2, box.leftBackBottom[2] + h/2, box.leftBackBottom[1] + w/2);
+            scene.add(mesh);
 
-            console.log(`Drawing box: ${l}x${h}x${w} at ${xb},${zb},${yb}`); // בדיקה
+            // הוספת קווי מתאר וספרות (כפי שהיה בקוד המקורי שלך)
+            const edges = new THREE.EdgesGeometry(geometry);
+            const wireframe = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000 }));
+            wireframe.position.copy(mesh.position);
+            scene.add(wireframe);
 
-            if (l > 0 && h > 0 && w > 0) {
-                const bMesh = new THREE.Mesh(
-                    new THREE.BoxGeometry(l, h, w),
-                    new THREE.MeshPhongMaterial({
-                        color: new THREE.Color(`hsl(${(box.typeId || 1) * 40}, 70%, 50%)`),
-                        transparent: false,
-                        opacity: 1
-                    })
-                );
-                bMesh.position.set(xb + l/2, zb + h/2, yb + w/2);
-                scene.add(bMesh);
-            }
-        });
-    } else {
-        console.warn("No boxes received to display!");
-    }
 
+        }, index * 300); // 1000ms = 1 second
+    });
+       }
     function animate() {
         requestAnimationFrame(animate);
         controls.update();
         renderer.render(scene, camera);
     }
     animate();
-}
+}}
+

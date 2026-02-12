@@ -80,11 +80,11 @@ public class LoadingChain {
     }
     // מחלקת עזר פנימית לשמירת נתוני כל ארגז (משוואה 10)
     public static class PlacedBoxInfo {
-        int cargoType; // k
-        int direction; // d
-        double[] leftBackBottom; // xB, yB, zB
-        double[] rightFrontTop;  // xT, yT, zT
-        double remainingSpace;   // VRi
+        public int cargoType; // k
+        public int direction; // d
+        public double[] leftBackBottom; // xB, yB, zB
+        public double[] rightFrontTop;  // xT, yT, zT
+        public double remainingSpace;   // VRi
 
         public PlacedBoxInfo(int k, int d, double[] b, double[] t, double vr) {
             this.cargoType = k;
