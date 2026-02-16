@@ -9,7 +9,7 @@ public class PheromoneManager {
     // פרמטרים לפי Table 2 במאמר [3]
     private final double ALPHA = 1.0;
     private final double BETA = 3.0;
-    private final double RHO = 0.7; // מקדם התנדפות קבוע
+    private final double RHO = 0.1; // מקדם התנדפות קבוע
     private final int Q_BITS = 10;  // 10 ביטים לייצוג כמות לפי משוואה 9 [6]
 
     public PheromoneManager() {
