@@ -16,18 +16,25 @@ public class CargoType {
     }
     public CargoType(CargoType c) {
         this.id = c.id; this.l = c.l; this.w = c.w; this.h = c.h; this.quantity = c.quantity; this.allowedOrientations = c.allowedOrientations;
-        this.totalQuantity = c.quantity;
+        this.totalQuantity = c.totalQuantity;
     }
 
     public double getVolume()//החזרת נפח הארגז
     { return l * w * h; }
 
 
-    public boolean canFit(Space space) {
+    public boolean canFit_(Space space) {
         // בדיקה גיאומטרית בסיסית מול ממדי המרחב
         return this.getMinDimension() <= Math.min(space.L, Math.min(space.W, space.H));
     }
-
+    public boolean canFit(Space space) {
+        return !getPossibleOrientations().stream()
+                .filter(ori -> ori.l <= space.L + 1e-9
+                        && ori.w <= space.W + 1e-9
+                        && ori.h <= space.H + 1e-9)
+                .findFirst()
+                .isEmpty();
+    }
     private double getMinDimension() {
         return Math.min(this.l, this.w);
     }
@@ -35,12 +42,12 @@ public class CargoType {
         List<Orientation> available = new ArrayList<>();
 
         Orientation[] allSix = {
-                new Orientation(1, l, h, w), // משוואה 2.1
-                new Orientation(2, l, w, h), // משוואה 2.2
-                new Orientation(3, w, l, h), // משוואה 2.3
-                new Orientation(4, h, w, l), // משוואה 2.4
-                new Orientation(5, l, w, h), // משוואה 2.5
-                new Orientation(6, w, h, l)  // משוואה 2.6
+                new Orientation(0, l, w, h),  // רגיל
+                new Orientation(1, l, h, w),  // סיבוב על X
+                new Orientation(2, w, l, h),  // סיבוב על Z
+                new Orientation(3, w, h, l),  // סיבוב על Z+X
+                new Orientation(4, h, l, w),  // סיבוב על Y
+                new Orientation(5, h, w, l)   // סיבוב על Y+Z
         };
 
         // סינון רק לפי מה שהוגדר במשתנה allowedOrientations

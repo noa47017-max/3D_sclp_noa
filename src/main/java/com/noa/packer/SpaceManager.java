@@ -55,7 +55,6 @@ public class SpaceManager {
         private Space tryCombine(Space s1, Space s2) {
         // בגלל חישובי דאבל, נשתמש בטולרנס קטן (אפסילון)
         double eps = 0.001;
-
         // 1. ניסיון מיזוג לאורך ציר Y (רוחב - Width)
         // תנאי: s1 ו-s2 צמודים ב-Y, ויש להם X, Z, L, H זהים לחלוטין
         if (Math.abs(s1.y + s1.W - s2.y) < eps || Math.abs(s2.y + s2.W - s1.y) < eps) {
@@ -66,7 +65,6 @@ public class SpaceManager {
                         s1.L, s1.W + s2.W, s1.H);
             }
         }
-
         // 2. ניסיון מיזוג לאורך ציר X (אורך - Length)
         // תנאי: s1 ו-s2 צמודים ב-X, ויש להם Y, Z, W, H זהים לחלוטין
         if (Math.abs(s1.x + s1.L - s2.x) < eps || Math.abs(s2.x + s2.L - s1.x) < eps) {
@@ -77,7 +75,6 @@ public class SpaceManager {
                         s1.L + s2.L, s1.W, s1.H);
             }
         }
-
         // 3. ניסיון מיזוג לאורך ציר Z (גובה - Height)
         // תנאי: s1 ו-s2 צמודים ב-Z, ויש להם X, Y, L, W זהים לחלוטין
         if (Math.abs(s1.z + s1.H - s2.z) < eps || Math.abs(s2.z + s2.H - s1.z) < eps) {
@@ -88,22 +85,18 @@ public class SpaceManager {
                         s1.L, s1.W, s1.H + s2.H);
             }
         }
-
         return null; // לא ניתן למזג באופן בטוח
     }
     public List<Space> mergeSpaces(List<Space> spaces) {
         if (spaces.size() < 2) return spaces;
-
         List<Space> merged = new ArrayList<>(spaces);
         boolean found;
-
         do {
             found = false;
             for (int i = 0; i < merged.size(); i++) {
                 for (int j = i + 1; j < merged.size(); j++) {
                     Space s1 = merged.get(i);
                     Space s2 = merged.get(j);
-
                     Space union = tryCombine(s1, s2);
                     if (union != null) {
                         merged.remove(j);
@@ -116,7 +109,6 @@ public class SpaceManager {
                 if (found) break;
             }
         } while (found);
-
         return merged;
     }
     public List<Space> cleanAndOptimizeSpaces(List<Space> spaces) {

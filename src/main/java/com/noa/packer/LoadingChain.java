@@ -47,10 +47,10 @@ public class LoadingChain {
 
         return state.toString();
     }
-    public void addStep(CargoType cargo, Orientation o, Space s) {
+    public void addStep(CargoType cargo, Orientation o, Space s, String stateKey) {
         double[] b = {s.x, s.y, s.z};
         double[] t = {s.x + o.l, s.y + o.w, s.z + o.h};
-        steps.add(new PlacedBoxInfo(cargo.id, o.id, b, t, s.getVolume()));
+        steps.add(new PlacedBoxInfo(cargo.id, o.id, b, t, s.getVolume(), stateKey));
 
         // תיקון חישוב הנפח:
         totalCargoVolume += (o.l * o.w * o.h);
@@ -85,13 +85,14 @@ public class LoadingChain {
         public double[] leftBackBottom; // xB, yB, zB
         public double[] rightFrontTop;  // xT, yT, zT
         public double remainingSpace;   // VRi
-
-        public PlacedBoxInfo(int k, int d, double[] b, double[] t, double vr) {
+        public String stateKey;
+        public PlacedBoxInfo(int k, int d, double[] b, double[] t, double vr, String stateKey) {
             this.cargoType = k;
             this.direction = d;
             this.leftBackBottom = b;
             this.rightFrontTop = t;
             this.remainingSpace = vr;
+            this.stateKey = stateKey;
         }
     }
 }

@@ -127,21 +127,49 @@ public class HybridLoadingSystem {
     public LoadingChain startLoadingProcess(Container container, List<CargoType> cargoTypes) {
         // 1. הגדרת המשתנה מחוץ לכל הלולאות
         LoadingChain bestGlobalSolution = null;
-
+        int noImprovementCount = 0;
+        final int NO_IMPROVE_LIMIT = 20;
         for (int tau = 0; tau < M; tau++) {
+            boolean improvedThisRound = false;
+
             for (int i = 0; i < m; i++) {
                 List<CargoType> antCargoes = deepCopyCargoes(cargoTypes);
                 LoadingChain currentChain = executeAntLoading(container, antCargoes, tau);
 
                 // 2. עדכון המנצח הגלובלי - רק אם הוא באמת טוב יותר!
-                if (currentChain != null) {
-                    if (bestGlobalSolution == null || currentChain.getVUR() > bestGlobalSolution.getVUR()) {
+                if (bestGlobalSolution == null || currentChain.getVUR() > bestGlobalSolution.getVUR()) {
+
+                    for (LoadingChain.PlacedBoxInfo step : currentChain.getSteps()) {
+                        pheromoneManager.updateGlobalPheromone(
+                                step.stateKey,
+                                step.cargoType,
+                                step.direction,
+                                step.leftBackBottom[0],
+                                step.leftBackBottom[1],
+                                step.leftBackBottom[2],
+                                step.remainingSpace,
+                                currentChain.getVUR()
+                        );
+                    }
+                    improvedThisRound = true;
+                    noImprovementCount = 0;
                         bestGlobalSolution = currentChain;
                         // הדפסה בזמן אמת כשנמצא שיפור
                         System.out.println("Iteration " + tau + ": New Global Best VUR: " +
                                 String.format("%.2f", bestGlobalSolution.getVUR() * 100) + "%");
                     }
                 }
+            if (improvedThisRound) {
+                noImprovementCount = 0;
+            } else {
+                noImprovementCount++;
+            }
+
+            // תוקן באג 2: הרסטארט מתבצע פעם אחת בלבד לאיטרציה
+            if (noImprovementCount >= NO_IMPROVE_LIMIT) {
+                pheromoneManager.partialReset(0.5);
+                noImprovementCount = 0;
+                System.out.println("🔄 Random Restart at iteration " + tau);
             }
         }
         outputResults(bestGlobalSolution);
@@ -173,10 +201,11 @@ public class HybridLoadingSystem {
             if (bestOri == null) continue;
 
             // 4. רישום ההנחה בשרשרת
-            chain.addStep(selected, bestOri, currentSpace);
+            chain.addStep(selected, bestOri, currentSpace, stateKey);
             selected.decreaseQuantity();
+            pheromoneManager.applyLocalEvaporation(stateKey, selected.id);
 
-            // 5. עדכון חללים - כאן קורה הקסם
+            // 5. עדכון חללים
             List<Space> nextIterationSpaces = new ArrayList<>();
 
             // א. הוספת החללים החדשים שנוצרו מהפיצול של החלל הנוכחי
@@ -191,20 +220,16 @@ public class HybridLoadingSystem {
                 }
             }
 
-            // 6. ניקוי ומיון (החלק שגרם לך לבעיות)
-            availableSpaces = cleanAndOptimizeSpaces(nextIterationSpaces);
+            // 6. ניקוי ומיון
+            availableSpaces = cleanAndOptimizeSpaces(new SpaceManager().mergeSpaces(nextIterationSpaces));
 
-            // המיון הקריטי: קודם Z (גובה), אחר כך Y (עומק), בסוף X (רוחב)
-            availableSpaces.sort(Comparator.comparingDouble((Space s) -> s.z)
-                    .thenComparingDouble(s -> s.y)
-                    .thenComparingDouble(s -> s.x));
         }
         return chain;
     }
 
     // פונקציה לבדיקה אם חלל נפגש עם ארגז
     private boolean isIntersecting(Space s, Space bPos, Orientation bOri) {
-        return s.x < bPos.x + bOri.l && s.x + s.L > bPos.x &&
+        return s.x < bPos.x + bOri.l && s.x + s.L > bPos.x &&//בודקים שהחלל מתחיל לפני שהארגז מסתיים ושהארגז מתחיל לפני שהארגז מסתיים
                 s.y < bPos.y + bOri.w && s.y + s.W > bPos.y &&
                 s.z < bPos.z + bOri.h && s.z + s.H > bPos.z;
     }
@@ -223,14 +248,16 @@ public class HybridLoadingSystem {
     }
 
     private List<Space> cleanAndOptimizeSpaces(List<Space> spaces) {
+        // מיון לפי נפח יורד - עוזר לנו לבדוק רק מול חללים גדולים יותר
+        spaces.sort((a, b) -> Double.compare(b.getVolume(), a.getVolume()));
         List<Space> filtered = new ArrayList<>();
-        // הסרת חללים קטנים מדי או מוכלים
         for (int i = 0; i < spaces.size(); i++) {
             Space s1 = spaces.get(i);
             if (s1.getVolume() <= 0.001) continue;
             boolean contained = false;
-            for (int j = 0; j < spaces.size(); j++) {
-                if (i != j && isContained(s1, spaces.get(j))) {
+            // בודקים רק מול חללים שכבר נכנסו ל-filtered (הם הגדולים יותר)
+            for (Space sBig : filtered) {
+                if (isContained(s1, sBig)) {
                     contained = true;
                     break;
                 }
