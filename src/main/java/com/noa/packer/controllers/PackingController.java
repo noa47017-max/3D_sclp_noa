@@ -1,0 +1,95 @@
+package com.noa.packer.controllers;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import com.noa.packer.algorithms.CargoType;
+import com.noa.packer.algorithms.HybridLoadingSystem;
+import com.noa.packer.algorithms.LoadingChain;
+import com.noa.packer.models.Box;
+import com.noa.packer.models.Container;
+import com.noa.packer.repositories.BoxRepository;
+import com.noa.packer.repositories.ContainerRepository;
+import com.noa.packer.services.PackingService;
+import org.bson.types.ObjectId;
+import java.util.*;
+
+@RestController
+@RequestMapping("/api")
+@CrossOrigin(origins = "*")
+public class PackingController {
+
+    @Autowired
+    private PackingService packingService;        // ← חדש: שמירה למסד
+
+    @Autowired
+    private ContainerRepository containerRepository; // ← חדש: שמירת מכולה
+    @Autowired
+    private BoxRepository boxRepository;
+
+    @PostMapping("/solve")
+    public ResponseEntity<?> solve(@RequestBody PackingRequest request) {
+        try {
+            // 1. חילוץ מידות המכולה
+            double L = request.container.get("l");
+            double W = request.container.get("w");
+            double H = request.container.get("h");
+
+            // 2. שמירת המכולה במסד
+            ObjectId userId = new ObjectId(request.userId);
+            Container container = new Container(userId, L, W, H);
+            ObjectId containerId = containerRepository.save(container);
+            //  שמירת הארגזים במסד
+
+            for (Map<String, Object> boxMap : request.boxes) {
+                Box box = new Box(
+                userId,
+                Double.parseDouble(boxMap.get("l").toString()),
+                Double.parseDouble(boxMap.get("w").toString()),
+                Double.parseDouble(boxMap.get("h").toString()),
+                (int) boxMap.get("quantity"),
+                Arrays.asList(0,1,2,3,4,5)
+            );
+            boxRepository.save(box);
+            }
+            // 3. המרת ארגזים
+            List<CargoType> cargoTypes = convertToCargoTypes(request.boxes);
+
+            // 4. הפעלת האלגוריתם
+            HybridLoadingSystem system = new HybridLoadingSystem();
+            LoadingChain result = system.startLoadingProcess(container, cargoTypes);
+            System.out.println("Best VUR: " +
+                String.format("%.2f", result.getVUR() * 100) + "%");
+
+            // 5. שמירת התוצאה במסד
+            packingService.saveResult(userId, result);
+
+            // 6. החזרת התוצאה לפרונט
+            return ResponseEntity.ok(result.getSteps());
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500)
+                .body("שגיאה בחישוב: " + e.getMessage());
+        }
+    }
+
+    private List<CargoType> convertToCargoTypes(List<Map<String, Object>> boxes) {
+        List<CargoType> cargoTypes = new ArrayList<>();
+        for (Map<String, Object> boxMap : boxes) {
+            int    typeId   = (int) boxMap.get("typeId");
+            double l        = Double.parseDouble(boxMap.get("l").toString());
+            double w        = Double.parseDouble(boxMap.get("w").toString());
+            double h        = Double.parseDouble(boxMap.get("h").toString());
+            int    quantity = (int) boxMap.get("quantity");
+            cargoTypes.add(new CargoType(typeId, l, w, h, quantity,
+                           Arrays.asList(0,1,2,3,4,5)));
+        }
+        return cargoTypes;
+    }
+
+    public static class PackingRequest {
+        public String                    userId;    // ← חדש: מי שולח את הבקשה
+        public Map<String, Double>       container;
+        public List<Map<String, Object>> boxes;
+    }
+}

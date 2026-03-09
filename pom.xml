@@ -25,6 +25,20 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-    </dependencies>
+        <dependency>
+          <groupId>org.mongodb</groupId>
+          <artifactId>mongodb-driver-sync</artifactId>
+          <version>4.11.0</version>
+        </dependency>
+        <dependency>
+    <groupId>org.springframework.security</groupId>
+    <artifactId>spring-security-crypto</artifactId>
+</dependency>
 
+<!-- שליחת אימיילים -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-mail</artifactId>
+</dependency>
+    </dependencies>
 </project>

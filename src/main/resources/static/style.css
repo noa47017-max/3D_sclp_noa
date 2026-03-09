@@ -43,7 +43,7 @@ th, td {
     border-bottom: 1px solid #e0787a;
 }
 
-/* עיצוב פס הגלילה (אופציונלי, כדי שייראה יפה) */
+/* עיצוב פס הגלילה  */
 .table-wrapper::-webkit-scrollbar {
     width: 8px;
 }
