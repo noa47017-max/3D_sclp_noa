@@ -27,3 +27,16 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+# מפתחות הצפנה (HTTPS)
+*.p12
+localhost.crt
+
+# הגדרות שרת וסיסמאות
+application.properties
+
+# קבצי זמניים של סביבת העבודה
+/target/
+.idea/
+.vscode/
+*.iml
