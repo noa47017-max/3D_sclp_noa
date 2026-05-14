@@ -70,6 +70,9 @@
     <div class="modal">
         <h2>שלום, <span id="user-display"></span></h2>
         <button id="createNewBtn">צור סידור חדש +</button>
+        <button id="benchmarkBtn" style="background:#2f6a8f; margin-top:8px;">
+            הרץ קובץ בנצ'מארק 📂
+        </button>
         <hr>
         <h3>היסטוריית סידורים:</h3>
         <div id="history-list">
@@ -120,6 +123,97 @@
         <button id="calculateBtn">חשב והצג הדמיה</button>
     </div>
 </div>
+<!-- ─────────────────── מסך בנצ'מארק ─────────────────── -->
+<div id="benchmark-screen" class="overlay" style="display:none;">
+    <div class="modal" style="max-width:680px; width:95%;">
+
+        <h2>הרצת קובץ בנצ'מארק 📂</h2>
+
+        <!-- העלאת קובץ -->
+        <div style="border:2px dashed #555; border-radius:10px; padding:20px; text-align:center; margin-bottom:16px; cursor:pointer;"
+             id="benchmarkDropZone">
+            <div style="font-size:36px; margin-bottom:8px;">📁</div>
+            <div style="color:#ccc; margin-bottom:10px;">גרור קובץ BR לכאן, או לחץ לבחירה</div>
+            <input type="file" id="benchmarkFileInput" accept=".txt" style="display:none;">
+            <button onclick="document.getElementById('benchmarkFileInput').click()"
+                    style="background:#555; font-size:13px; padding:6px 16px;">
+                בחר קובץ
+            </button>
+            <div id="benchmarkFileName" style="margin-top:10px; color:#e0787a; font-size:13px;"></div>
+        </div>
+
+        <!-- פרטי הקובץ + בחירת מקרה -->
+        <div id="benchmarkInfo" style="display:none;">
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                <div id="benchmarkStats" style="font-size:13px; color:#aaa;"></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="text" id="benchmarkCaseFilter" placeholder="חפש מקרה..." 
+                           style="width:130px; font-size:13px; padding:5px 8px;">
+                    <select id="benchmarkCaseSelect" style="flex:1; min-width:160px; font-size:13px;">
+                        <option value="">— בחר מקרה —</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- פרטי המקרה הנבחר -->
+            <div id="benchmarkCaseDetails" style="display:none; background:#1e2a30; border-radius:8px; padding:14px; margin-bottom:14px; font-size:13px;">
+                <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+                    <span>🏗 מכולה: <strong id="bcContainer"></strong></span>
+                    <span>📦 סוגי ארגזים: <strong id="bcTypes"></strong></span>
+                    <span>🔢 סה"כ ארגזים: <strong id="bcTotal"></strong></span>
+                    <span>📊 ניצולת מקס': <strong id="bcUtil"></strong></span>
+                </div>
+                <div style="margin-top:10px; max-height:140px; overflow-y:auto;">
+                    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                        <thead>
+                            <tr style="color:#888;">
+                                <th style="padding:3px 6px;">#</th>
+                                <th style="padding:3px 6px;">אורך</th>
+                                <th style="padding:3px 6px;">רוחב</th>
+                                <th style="padding:3px 6px;">גובה</th>
+                                <th style="padding:3px 6px;">כמות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bcBoxesBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- כפתורי פעולה -->
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <button id="benchmarkRunBtn" disabled
+                        style="flex:1; background:#e0787a;">
+                    הרץ מקרה זה ▶
+                </button>
+                <button id="benchmarkRunAllBtn"
+                        style="flex:1; background:#2f6a8f;">
+                    הרץ את כולם ⚡
+                </button>
+            </div>
+
+            <!-- לוג תוצאות -->
+            <div id="benchmarkLog" style="
+                display:none;
+                margin-top:14px;
+                background:#111;
+                border-radius:8px;
+                padding:12px;
+                max-height:220px;
+                overflow-y:auto;
+                font-family:monospace;
+                font-size:12px;
+                line-height:1.7;
+            "></div>
+
+        </div>
+
+        <button id="benchmarkBackBtn" style="background:#333; margin-top:12px; font-size:13px;">
+            ← חזור לתפריט
+        </button>
+    </div>
+</div>
+<!-- ──────────────────────────────────────────────────────── -->
 <div id="result-screen" class="overlay" style="display:none; background: transparent; pointer-events: none;">
     <div style="position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; pointer-events: auto; z-index: 3000;">
         <button id="printTableBtn" class="secondary" style="width: 120px; background: #444; color: white;">הדפס רשימה 🖨️</button>

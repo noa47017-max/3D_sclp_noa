@@ -12,7 +12,9 @@ const screens = {
     menu: document.getElementById('menu-screen'),
     creator: document.getElementById('creator-screen'),
     result: document.getElementById('result-screen'),
-    register: document.getElementById('register-screen')
+    register: document.getElementById('register-screen'),
+    benchmark: document.getElementById('benchmark-screen')
+
 };
 
 // --- חשיפת הפונקציה לעולם החיצון (תיקון השגיאה שלך) ---
@@ -32,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('goToRegisterBtn')?.addEventListener('click', () => showScreen('register'));
     document.getElementById('backToLoginBtn')?.addEventListener('click', () => showScreen('login'));
     document.getElementById('createNewBtn')?.addEventListener('click', () => showScreen('creator'));
+    document.getElementById('benchmarkBtn')?.addEventListener('click', () => showScreen('benchmark'));
+    document.getElementById('benchmarkBackBtn')?.addEventListener('click', () => showScreen('menu'));
 });
 
 
@@ -269,6 +273,235 @@ document.getElementById('calculateBtn').onclick = async () => {
         alert("שגיאה בחיבור לשרת החישוב");
     }
 };
+// ═══════════════════════════════════════════════════════════
+//  מסך בנצ'מארק
+// ═══════════════════════════════════════════════════════════
+
+let benchmarkCases = [];  // כל המקרים שנטענו מהקובץ
+
+// ── פרסור קובץ BR ──────────────────────────────────────────
+function parseBenchmarkFile(text) {
+    const tokens = text.trim().split(/\s+/).map(Number);
+    let i = 0;
+    const nxt = () => tokens[i++];
+    const cases = [];
+    const n = nxt();
+    for (let c = 0; c < n; c++) {
+        const caseNum   = nxt();
+        const problemId = nxt();
+        const cl = nxt(), cw = nxt(), ch = nxt();
+        const nBoxes = nxt();
+        const boxes = [];
+        for (let b = 0; b < nBoxes; b++) {
+            const typeId = nxt();
+            const l = nxt(); nxt(); // rot_l – לא נשלח לשרת
+            const w = nxt(); nxt(); // rot_w
+            const h = nxt(); nxt(); // rot_h
+            const quantity = nxt();
+            boxes.push({ typeId, l, w, h, quantity });
+        }
+        cases.push({ caseNum, problemId, container: { l: cl, w: cw, h: ch }, boxes });
+    }
+    return cases;
+}
+
+// ── טעינת קובץ ─────────────────────────────────────────────
+function loadBenchmarkFile(file) {
+    if (!file) return;
+    document.getElementById('benchmarkFileName').textContent = `📄 ${file.name}`;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            benchmarkCases = parseBenchmarkFile(e.target.result);
+            populateBenchmarkUI();
+        } catch (err) {
+            alert('שגיאה בקריאת הקובץ: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+// ── מילוי ה-UI לאחר טעינה ──────────────────────────────────
+function populateBenchmarkUI() {
+    const info    = document.getElementById('benchmarkInfo');
+    const stats   = document.getElementById('benchmarkStats');
+    const select  = document.getElementById('benchmarkCaseSelect');
+    const logDiv  = document.getElementById('benchmarkLog');
+
+    info.style.display = 'block';
+    logDiv.style.display = 'none';
+    logDiv.innerHTML = '';
+
+    // סטטיסטיקות כלליות
+    const avgBoxes = (benchmarkCases.reduce((s, c) => s + c.boxes.reduce((ss, b) => ss + b.quantity, 0), 0) / benchmarkCases.length).toFixed(1);
+    const types    = benchmarkCases[0]?.boxes.length || 0;
+    stats.textContent = `${benchmarkCases.length} מקרים  |  ${types} סוגי ארגזים  |  ממוצע ${avgBoxes} ארגזים למקרה`;
+
+    // מילוי dropdown
+    select.innerHTML = '<option value="">— בחר מקרה —</option>';
+    benchmarkCases.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.caseNum;
+        opt.textContent = `מקרה #${c.caseNum}  (ID: ${c.problemId})`;
+        select.appendChild(opt);
+    });
+
+    document.getElementById('benchmarkRunBtn').disabled = true;
+    document.getElementById('benchmarkCaseDetails').style.display = 'none';
+}
+
+// ── בחירת מקרה מה-dropdown ─────────────────────────────────
+document.getElementById('benchmarkCaseSelect')?.addEventListener('change', e => {
+    const caseNum = parseInt(e.target.value);
+    const tc = benchmarkCases.find(c => c.caseNum === caseNum);
+    if (!tc) {
+        document.getElementById('benchmarkCaseDetails').style.display = 'none';
+        document.getElementById('benchmarkRunBtn').disabled = true;
+        return;
+    }
+    showCaseDetails(tc);
+    document.getElementById('benchmarkRunBtn').disabled = false;
+});
+
+// ── חיפוש מקרה ─────────────────────────────────────────────
+document.getElementById('benchmarkCaseFilter')?.addEventListener('input', e => {
+    const q = e.target.value.trim();
+    const select = document.getElementById('benchmarkCaseSelect');
+    Array.from(select.options).forEach(opt => {
+        if (!opt.value) return;
+        opt.style.display = opt.textContent.includes(q) ? '' : 'none';
+    });
+});
+
+// ── הצגת פרטי מקרה ─────────────────────────────────────────
+function showCaseDetails(tc) {
+    const details = document.getElementById('benchmarkCaseDetails');
+    details.style.display = 'block';
+
+    const contVol  = tc.container.l * tc.container.w * tc.container.h;
+    const cargoVol = tc.boxes.reduce((s, b) => s + b.l * b.w * b.h * b.quantity, 0);
+    const util     = ((cargoVol / contVol) * 100).toFixed(1);
+
+    document.getElementById('bcContainer').textContent =
+        `${tc.container.l} × ${tc.container.w} × ${tc.container.h}`;
+    document.getElementById('bcTypes').textContent  = tc.boxes.length;
+    document.getElementById('bcTotal').textContent  = tc.boxes.reduce((s, b) => s + b.quantity, 0);
+    document.getElementById('bcUtil').textContent   = `${util}%`;
+
+    const tbody = document.getElementById('bcBoxesBody');
+    tbody.innerHTML = tc.boxes.map(b => `
+        <tr style="border-top:1px solid #333;">
+            <td style="padding:3px 6px; color:#888;">${b.typeId}</td>
+            <td style="padding:3px 6px;">${b.l}</td>
+            <td style="padding:3px 6px;">${b.w}</td>
+            <td style="padding:3px 6px;">${b.h}</td>
+            <td style="padding:3px 6px;">${b.quantity}</td>
+        </tr>
+    `).join('');
+}
+
+// ── שליחה לשרת ─────────────────────────────────────────────
+async function runBenchmarkCase(tc) {
+    const t0 = Date.now();
+    const response = await fetch('https://localhost:8443/api/solve', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ userId: currentUserId, container: tc.container, boxes: tc.boxes })
+    });
+    const result = await response.json();
+    const ms = Date.now() - t0;
+
+    let util = '—';
+    if (Array.isArray(result) && result.length > 0) {
+        const packed = result.reduce((s, b) => {
+            const [x0,y0,z0] = b.leftBackBottom, [x1,y1,z1] = b.rightFrontTop;
+            return s + Math.abs((x1-x0)*(y1-y0)*(z1-z0));
+        }, 0);
+        const cv = tc.container.l * tc.container.w * tc.container.h;
+        util = ((packed / cv) * 100).toFixed(1) + '%';
+    }
+
+    return { result, ms, util };
+}
+
+// ── כפתור: הרץ מקרה בודד ───────────────────────────────────
+document.getElementById('benchmarkRunBtn')?.addEventListener('click', async () => {
+    const caseNum = parseInt(document.getElementById('benchmarkCaseSelect').value);
+    const tc = benchmarkCases.find(c => c.caseNum === caseNum);
+    if (!tc) return;
+
+    const btn = document.getElementById('benchmarkRunBtn');
+    btn.disabled = true;
+    btn.textContent = 'שולח...';
+
+    try {
+        const { result, ms, util } = await runBenchmarkCase(tc);
+
+        if (Array.isArray(result) && result.length > 0) {
+            lastCalculatedData = result;
+            showScreen('result');
+            init3D(result, tc.container);
+        } else {
+            alert(`מקרה #${tc.caseNum} – לא נמצא סידור אפשרי`);
+        }
+    } catch (err) {
+        alert(`שגיאה: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'הרץ מקרה זה ▶';
+    }
+});
+
+// ── כפתור: הרץ את כולם ────────────────────────────────────
+document.getElementById('benchmarkRunAllBtn')?.addEventListener('click', async () => {
+    if (benchmarkCases.length === 0) return alert('נא לטעון קובץ תחילה');
+
+    const btn    = document.getElementById('benchmarkRunAllBtn');
+    const logDiv = document.getElementById('benchmarkLog');
+    btn.disabled = true;
+    btn.textContent = 'מריץ...';
+    logDiv.style.display = 'block';
+    logDiv.innerHTML = `<span style="color:#aaa">מריץ ${benchmarkCases.length} מקרים...\n</span>`;
+
+    let ok = 0, fail = 0, times = [], utils = [];
+
+    for (const tc of benchmarkCases) {
+        try {
+            const { ms, util } = await runBenchmarkCase(tc);
+            ok++;
+            times.push(ms);
+            if (util !== '—') utils.push(parseFloat(util));
+            logDiv.innerHTML += `<span style="color:#4caf50">✅ #${String(tc.caseNum).padStart(3)}  ${ms}ms  ניצולת: ${util}</span>\n`;
+        } catch (err) {
+            fail++;
+            logDiv.innerHTML += `<span style="color:#ff4d4d">❌ #${String(tc.caseNum).padStart(3)}  שגיאה: ${err.message}</span>\n`;
+        }
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    const avgTime = times.length ? Math.round(times.reduce((a,b)=>a+b,0)/times.length) : 0;
+    const avgUtil = utils.length ? (utils.reduce((a,b)=>a+b,0)/utils.length).toFixed(1) : '—';
+    logDiv.innerHTML += `\n<span style="color:#f0c040">━━━ סיכום ━━━\n✅ הצלחות: ${ok}  ❌ כישלונות: ${fail}\n⏱ זמן ממוצע: ${avgTime}ms\n📊 ניצולת ממוצעת: ${avgUtil}%</span>\n`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+
+    btn.disabled = false;
+    btn.textContent = 'הרץ את כולם ⚡';
+});
+
+// ── Drag & Drop ─────────────────────────────────────────────
+const dropZone = document.getElementById('benchmarkDropZone');
+dropZone?.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = '#e0787a'; });
+dropZone?.addEventListener('dragleave', ()  => { dropZone.style.borderColor = '#555'; });
+dropZone?.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#555';
+    const file = e.dataTransfer.files[0];
+    if (file) loadBenchmarkFile(file);
+});
+document.getElementById('benchmarkFileInput')?.addEventListener('change', e => {
+    loadBenchmarkFile(e.target.files[0]);
+});
 
 // --- וידאו והקלטה ---
 let finalVideoBlob = null;

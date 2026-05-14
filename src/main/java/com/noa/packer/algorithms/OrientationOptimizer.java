@@ -26,26 +26,49 @@ public class OrientationOptimizer {
 //        }
 //        return null;
 //    }
+// public Orientation getBestOrientation(Space space, CargoType cargo, Container container) {
+//     List<Orientation> possible = cargo.getPossibleOrientations();
+//     Orientation best = null;
+//     double maxScore = -1.0;
+
+//     for (Orientation ori : possible) {
+//         if (ori.l <= space.L && ori.w <= space.W && ori.h <= space.H) {
+//             // ניקוד המבוסס על שטח פנים (Area) חלקי הגובה
+//             // זה גורם לאלגוריתם להעדיף ארגזים שטוחים שתופסים הרבה רצפה
+//             double area = ori.l * ori.w;
+//             double heightPenalty = ori.h;
+//             double score = area / heightPenalty;
+
+//             // בונוס משמעותי אם הגובה מתאים בדיוק לגובה החלל הקיים (מילוי שכבה)
+//             if (Math.abs(ori.h - space.H) < 0.001) {
+//                 score *= 2.0;
+//             }
+
+//             if (score > maxScore) {
+//                 maxScore = score;
+//                 best = ori;
+//             }
+//         }
+//     }
+//     return best;
+// }
 public Orientation getBestOrientation(Space space, CargoType cargo, Container container) {
     List<Orientation> possible = cargo.getPossibleOrientations();
     Orientation best = null;
-    double maxScore = -1.0;
+    double minWaste = Double.MAX_VALUE;
 
     for (Orientation ori : possible) {
-        if (ori.l <= space.L && ori.w <= space.W && ori.h <= space.H) {
-            // ניקוד המבוסס על שטח פנים (Area) חלקי הגובה
-            // זה גורם לאלגוריתם להעדיף ארגזים שטוחים שתופסים הרבה רצפה
-            double area = ori.l * ori.w;
-            double heightPenalty = ori.h;
-            double score = area / heightPenalty;
+        if (ori.l <= space.L + 1e-9 
+            && ori.w <= space.W + 1e-9 
+            && ori.h <= space.H + 1e-9) {
 
-            // בונוס משמעותי אם הגובה מתאים בדיוק לגובה החלל הקיים (מילוי שכבה)
-            if (Math.abs(ori.h - space.H) < 0.001) {
-                score *= 2.0;
-            }
+            // ✅ משוואה 8 מהמאמר
+            double remainderW = (space.W % ori.w) * ori.h;
+            double remainderH = (space.H % ori.h) * ori.w;
+            double wastedArea = remainderW + remainderH;
 
-            if (score > maxScore) {
-                maxScore = score;
+            if (wastedArea < minWaste) {
+                minWaste = wastedArea;
                 best = ori;
             }
         }

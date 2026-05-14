@@ -31,7 +31,7 @@ public class LoadingChain {
     public String generateStateWord(List<CargoType> allCargoTypes) {
         // אורך מילת המצב הוא K * (1 + Q) ביטים [2]
         // K הוא מספר סוגי המטענים, Q הוא מספר הביטים המוקצה לכמות [3, 4]
-        final int Q_BITS = 10; // לדוגמה, מאפשר כמות של עד 1023 יחידות מכל סוג [3]
+        final int Q_BITS = 7; // לדוגמה, מאפשר כמות של עד 1023 יחידות מכל סוג [3]
         StringBuilder state = new StringBuilder();
 
         for (CargoType type : allCargoTypes) {
@@ -53,13 +53,16 @@ public class LoadingChain {
 
         return state.toString();
     }
-    public void addStep(CargoType cargo, Orientation o, Space s, String stateKey) {
+    public void addStep(CargoType cargo, Orientation o, Space s, String stateKey, PheromoneManager pheromoneManager) {
         double[] b = {s.x, s.y, s.z};
         double[] t = {s.x + o.l, s.y + o.w, s.z + o.h};
-        steps.add(new PlacedBoxInfo(cargo.id, o.id, b, t, s.getVolume(), stateKey));
+        double vr = s.getVolume() - (o.l * o.w * o.h);
+        steps.add(new PlacedBoxInfo(cargo.id, o.id, b, t, vr, stateKey));
 
         // תיקון חישוב הנפח:
         totalCargoVolume += (o.l * o.w * o.h);
+    //    pheromoneManager.applyLocalEvaporation(stateKey,cargo.id);
+
     }
     public String toJSON() {
         StringBuilder json = new StringBuilder();

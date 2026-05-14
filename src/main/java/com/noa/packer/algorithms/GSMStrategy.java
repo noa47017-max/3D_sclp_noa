@@ -30,8 +30,8 @@ public class GSMStrategy {
                 // שינוי: במקום getVolume, אנחנו מחפשים את שטח הבסיס הגדול ביותר
                 // זה עוזר ליצור שכבות יציבות ושטוחות
                 double bestAreaForCargo = getBestBaseArea(cargo, currentSpace);
-                if (bestAreaForCargo > maxArea) {
-                    maxArea = bestAreaForCargo;
+                if (cargo.getVolume() > maxArea) {
+                    maxArea = cargo.getVolume();
                     bestCargo = cargo;
                 }
             }
