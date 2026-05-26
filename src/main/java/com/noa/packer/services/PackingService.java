@@ -34,12 +34,12 @@ public class PackingService {
     }
     Container container = containerRepository.getById(chain.getContainerID());
     PackingResult result = new PackingResult(
-        userId,
-        chain.getContainerID(),
-        chain.getTotalCargoVolume(),
-        container.getVolume(),
-        placements
-    );
+    userId,
+    chain.getContainerID(),
+    container.getVolume(),        // containerVolume
+    chain.getTotalCargoVolume(),  // totalCargoVolume
+    placements
+);
 
     return packingResultRepository.save(result);
 }

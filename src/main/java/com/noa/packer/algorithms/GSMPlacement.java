@@ -1,42 +1,39 @@
-package com.noa.packer.algorithms;
-
-public class GSMPlacement {
-    private GSMStrategy strategy = new GSMStrategy();
-    private OrientationOptimizer orientationOptimizer = new OrientationOptimizer();
-
-//    public void executeGSM(Space layerSpace, List<CargoType> cargoTypes, LoadingChain chain) {
-//        // שלב 2 במאמר: אם זו שכבה חדשה, בחר ארגז מקסימלי [4]
-//        CargoType firstCargo = strategy.selectCargo(layerSpace, cargoTypes);
-//        if (firstCargo == null) return;
+//package com.noa.packer.algorithms;
 //
-//        placeAndProcess(firstCargo, layerSpace, cargoTypes, chain);
+//import java.util.List;
+//import com.noa.packer.models.Container; // תתאים את ה-Import למיקום אצלך
+//
+//public class GSMPlacement {
+//    private GSMStrategy strategy = new GSMStrategy();
+//    private OrientationOptimizer orientationOptimizer = new OrientationOptimizer();
+//    PheromoneManager pheromoneManager=new PheromoneManager();
+//
+//    // זו נקודת הכניסה החדשה שלך
+//    public void executeGSM(Space initialSpace, List<CargoType> cargoTypes, LoadingChain chain, Container container) {
+//        tryFill(initialSpace, cargoTypes, chain, container);
 //    }
 //
-//    private void placeAndProcess(CargoType cargo, Space space, List<CargoType> cargoTypes, LoadingChain chain,Container container) {
-//        // קביעת כיוון אופטימלי לפי משוואה 8 (מינימום שטח שארית ב-YOZ) [8, 9]
-//        Orientation bestOri = orientationOptimizer.getBestOrientation(space, cargo,container);
+//    private void tryFill(Space space, List<CargoType> cargoTypes, LoadingChain chain, Container container) {
+//        // 1. תנאי עצירה: אם החלל קטן מדי (לפי המאמר, אם הנפח מתחת לסף מסוים, אין טעם להמשיך)
+//        if (space.getVolume() < 0.001) return;
+//        String stateKey = pheromoneManager.generateStateWord(cargoTypes);
 //
-//        // עדכון שרשרת הטעינה ועדכון פרומונים בעץ (גם בשלב החמדן!) [4, 5]
-//        chain.addStep(cargo, bestOri, space);
-//        cargo.decreaseQuantity();
+//        // 2. בחירת הארגז הטוב ביותר לחלל הנוכחי (החלק החמדני - Greedy)
+//        CargoType cargo = strategy.selectCargo(space, cargoTypes);
+//        if (cargo == null) return; // לא נמצא ארגז מתאים, אין מה להמשיך ברקורסיה הזו
 //
-//        // שלב 3 במאמר: קביעת המרחבים הבאים לפי סדר Top-Right-Front [5, 7]
-//        // המערכת מנסה למלא את החללים בסדר זה כדי להבטיח ניצול מקסימלי
-//        Space topSpace = space.getTopResidual(bestOri);
-//        Space rightSpace = space.getRightResidual(bestOri);
-//        Space frontSpace = space.getFrontResidual(bestOri);
+//        // 3. מציאת האוריינטציה האופטימלית
+//        Orientation bestOri = orientationOptimizer.getBestOrientation(space, cargo, container);
+//        if (bestOri == null) return; // לא נמצאה זווית מתאימה
+//        pheromoneManager.updateLocalPheromone(stateKey, cargo.id);
+//        // 4. ביצוע הטעינה בפועל
+//        chain.addStep(cargo, bestOri, space,stateKey);
+//        cargo.decreaseQuantity(); // עדכון המלאי
 //
-//        // קריאה רקורסיבית או לולאתית לפי סדר העדיפויות [7]
-//        tryFill(topSpace, cargoTypes, chain);
-//        tryFill(rightSpace, cargoTypes, chain);
-//        tryFill(frontSpace, cargoTypes, chain);
+//        // 5. רקורסיה: יצירת החללים החדשים וקריאה אליהם בסדר הקריטי Top -> Right -> Front
+//        // הסדר הזה הוא זה שמבטיח ש"נמלא" את המכולה בצורה יציבה ושלא יישארו חורים גדולים
+//        tryFill(space.getTopResidual(bestOri), cargoTypes, chain, container);
+//        tryFill(space.getRightResidual(bestOri), cargoTypes, chain, container);
+//        tryFill(space.getFrontResidual(bestOri), cargoTypes, chain, container);
 //    }
-//
-//    private void tryFill(Space s, List<CargoType> types, LoadingChain chain) {
-//        if (s.getVolume() <= 0) return;
-//        CargoType next = strategy.selectCargo(s, types);
-//        if (next != null) {
-//            placeAndProcess(next, s, types, chain);
-//        }
-//    }
-}
+//}

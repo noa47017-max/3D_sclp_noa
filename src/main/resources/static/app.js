@@ -6,6 +6,8 @@ let scene, camera, renderer, controls;
 let boxesToPack = [];
 let lastCalculatedData = [];
 let currentUserId = null;
+let currentMeshBoxes = [];
+let finalVideoBlob = null;
 
 const screens = {
     login: document.getElementById('login-screen'),
@@ -14,34 +16,109 @@ const screens = {
     result: document.getElementById('result-screen'),
     register: document.getElementById('register-screen'),
     benchmark: document.getElementById('benchmark-screen')
-
 };
 
-// --- חשיפת הפונקציה לעולם החיצון (תיקון השגיאה שלך) ---
-export function showScreen(screenName) {
+// ─── מנגנון ניווט חכם: שינוי URL ותמיכה בחיצי הדפדפן ───
+export function showScreen(screenName, bypassHistory = false) {
     Object.values(screens).forEach(s => {
         if (s) s.style.display = 'none';
     });
     if (screens[screenName]) {
         screens[screenName].style.display = 'flex';
+
+        // שמירה ב-sessionStorage לטובת רענון הטאב הנוכחי בלבד
+        if (screenName !== 'login' && screenName !== 'register') {
+            sessionStorage.setItem('lastScreen', screenName);
+        }
+
+        // עדכון ה-URL למעלה בלי לרענן את הדף
+        if (!bypassHistory) {
+            history.pushState({ screen: screenName }, '', `#${screenName}`);
+        }
     }
 }
-// הופך את הפונקציה לזמינה גם מתוך ה-HTML אם ממש חייבים
-window.showScreen = showScreen; 
+window.showScreen = showScreen;
 
-// --- חיבור מאזינים לכפתורי ניווט ---
+// האזנה לחיצים של הדפדפן (קדימה / אחורה)
+window.addEventListener('popstate', (event) => {
+    if (event.state && event.state.screen) {
+        showScreen(event.state.screen, true);
+    } else {
+        const savedToken = localStorage.getItem('token');
+        showScreen(savedToken ? 'menu' : 'login', true);
+    }
+});
+
+// ─── פונקציית עזר עטופה ל-Fetch (מטפלת אוטומטית בטוקנים פגי תוקף ורענון טוקן) ───
+async function authenticatedFetch(url, options = {}) {
+    options.headers = options.headers || {};
+    const token = localStorage.getItem('token');
+    if (token) {
+        options.headers['Authorization'] = 'Bearer ' + token;
+    }
+
+    try {
+        const response = await fetch(url, options);
+
+        // אם השרת החזיר 401 או 403 - הטוקן פג או לא תקין
+        if (response.status === 401 || response.status === 403) {
+            handleLogoutDueToTimeout();
+            throw new Error("Session expired");
+        }
+
+        // קריאת טוקן מתגלגל חדש (Sliding Expiration) אם השרת החזיר אותו ב-Header
+        const newToken = response.headers.get('New-Token');
+        if (newToken) {
+            localStorage.setItem('token', newToken);
+        }
+
+        return response;
+    } catch (err) {
+        if (err.message !== "Session expired") {
+            console.error("Network error:", err);
+        }
+        throw err;
+    }
+}
+
+function handleLogoutDueToTimeout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    sessionStorage.removeItem('lastScreen');
+    showScreen('login');
+    alert("⚠️ פג תוקף ההתחברות (לא בוצעו פעולות בשעה האחרונה או שעבר זמן המקסימום). אנא התחברי מחדש.");
+}
+
+// --- חיבור מאזינים ובדיקת טוקן באתחול הדף ---
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('goToRegisterBtn')?.addEventListener('click', () => showScreen('register'));
     document.getElementById('backToLoginBtn')?.addEventListener('click', () => showScreen('login'));
     document.getElementById('createNewBtn')?.addEventListener('click', () => showScreen('creator'));
     document.getElementById('benchmarkBtn')?.addEventListener('click', () => showScreen('benchmark'));
     document.getElementById('benchmarkBackBtn')?.addEventListener('click', () => showScreen('menu'));
+
+    const savedToken = localStorage.getItem('token');
+    const savedUsername = localStorage.getItem('username');
+
+    // קריאת המיקום הנוכחי מה-URL (אם המשתמש העתיק לינק או חזר)
+    const urlHash = window.location.hash.replace('#', '');
+    const lastScreen = urlHash || sessionStorage.getItem('lastScreen') || 'menu';
+
+    if (savedToken) {
+        history.replaceState({ screen: lastScreen }, '', `#${lastScreen}`);
+        showScreen(lastScreen, true);
+
+        const userDisplay = document.getElementById('user-display');
+        if (userDisplay) {
+            userDisplay.innerText = savedUsername ? savedUsername : "אורח";
+        }
+    } else {
+        history.replaceState({ screen: 'login' }, '', '#login');
+        showScreen('login', true);
+    }
 });
 
-
-document.getElementById('goToRegisterBtn')?.addEventListener('click', () => showScreen('register'));
-
-// --- פונקציית עזר להודעות שגיאה ---
+// --- פונקציות עזר להודעות שגיאה ---
 function showError(elementId, message) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -54,7 +131,7 @@ function hideError(elementId) {
     if (el) el.style.display = 'none';
 }
 
-// --- התחברות (מתוקן ל-HTTPS) ---
+// --- התחברות ---
 const loginBtn = document.getElementById('loginBtn');
 if (loginBtn) {
     loginBtn.onclick = async () => {
@@ -68,7 +145,6 @@ if (loginBtn) {
         }
 
         try {
-            // שינוי הכתובת ל-HTTPS ופורט 8443
             const response = await fetch('https://localhost:8443/api/users/login', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -78,11 +154,15 @@ if (loginBtn) {
             const result = await response.json();
             if (response.ok && result.status === "success") {
                 currentUserId = result.userId;
+
+                localStorage.setItem('token', result.token);
+                localStorage.setItem('username', user);
+
                 hideError('login-error');
                 document.getElementById('user-display').innerText = user;
                 showScreen('menu');
             } else {
-                showError('login-error', result.replace("❌", "").trim() || 'שם משתמש או סיסמה שגויים');
+                showError('login-error', result.message || 'שם משתמש או סיסמה שגויים');
             }
 
         } catch (err) {
@@ -91,7 +171,7 @@ if (loginBtn) {
     };
 }
 
-// --- הרשמה (מתוקן ל-HTTPS) ---
+// --- הרשמה ---
 const registerBtn = document.getElementById('registerBtn');
 if (registerBtn) {
     registerBtn.onclick = async () => {
@@ -111,7 +191,6 @@ if (registerBtn) {
         }
 
         try {
-            // שינוי הכתובת ל-HTTPS ופורט 8443
             const response = await fetch('https://localhost:8443/api/users/register', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -155,7 +234,6 @@ async function forgotPassword() {
         alert("שגיאה בחיבור לשרת");
     }
 }
-
 document.getElementById('forgotPasswordBtn')?.addEventListener('click', forgotPassword);
 
 // --- ניהול ארגזים וטבלה ---
@@ -165,25 +243,20 @@ document.getElementById('addBoxBtn').onclick = () => {
     const h   = parseFloat(document.getElementById('newBoxH').value);
     const qty = parseInt(document.getElementById('newBoxQty').value);
 
-    // ולידציה מלאה
     if (!l || !w || !h || !qty) {
         alert("⚠️ נא למלא את כל שדות הארגז");
         return;
     }
-    if (l <= 0 || w <= 0 || h <= 0) {
-        alert("⚠️ מידות הארגז חייבות להיות חיוביות!");
-        return;
-    }
-    if (qty <= 0) {
-        alert("⚠️ הכמות חייבת להיות חיובית!");
+    if (l <= 0 || w <= 0 || h <= 0 || qty <= 0) {
+        alert("⚠️ המידות והכמות חייבות להיות חיוביות!");
         return;
     }
 
     boxesToPack.push({ typeId: boxesToPack.length + 1, l, w, h, quantity: qty });
     updateTable();
-    ['newBoxL', 'newBoxW', 'newBoxH', 'newBoxQty']
-        .forEach(id => document.getElementById(id).value = '');
+    ['newBoxL', 'newBoxW', 'newBoxH', 'newBoxQty'].forEach(id => document.getElementById(id).value = '');
 };
+
 document.getElementById('jsonFileInput')?.addEventListener('change', function(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -196,17 +269,9 @@ document.getElementById('jsonFileInput')?.addEventListener('change', function(ev
 
             let addedCount = 0;
             newBoxes.forEach(box => {
-                const l = parseFloat(box.l);
-                const w = parseFloat(box.w);
-                const h = parseFloat(box.h);
-                const quantity = parseInt(box.quantity);
-
-                // ולידציה
+                const l = parseFloat(box.l), w = parseFloat(box.w), h = parseFloat(box.h), quantity = parseInt(box.quantity);
                 if (l > 0 && w > 0 && h > 0 && quantity > 0) {
-                    boxesToPack.push({
-                        typeId: boxesToPack.length + 1,
-                        l, w, h, quantity
-                    });
+                    boxesToPack.push({ typeId: boxesToPack.length + 1, l, w, h, quantity });
                     addedCount++;
                 }
             });
@@ -215,16 +280,16 @@ document.getElementById('jsonFileInput')?.addEventListener('change', function(ev
                 updateTable();
                 alert(`ייבוא הושלם: נוספו ${addedCount} סוגי ארגזים`);
             } else {
-                alert("לא נמצאו נתונים תקינים. וודא שהשדות הם l, w, h, quantity וכולם חיוביים");
+                alert("לא נמצאו נתונים תקינים.");
             }
-
         } catch (err) {
-            alert("שגיאה בקריאת הקובץ – וודא שזהו JSON תקין");
+            alert("שגיאה בקריאת הקובץ");
         }
         event.target.value = '';
     };
     reader.readAsText(file);
 });
+
 function updateTable() {
     const tbody = document.getElementById('boxesTableBody');
     if (!tbody) return;
@@ -238,13 +303,12 @@ function updateTable() {
         </tr>
     `).join('');
 }
-
 window.removeBox = (index) => {
     boxesToPack.splice(index, 1);
     updateTable();
 };
 
-// --- חישוב אלגוריתם (HTTPS) ---
+// --- חישוב אלגוריתם ---
 document.getElementById('calculateBtn').onclick = async () => {
     if (boxesToPack.length === 0) return alert("נא להוסיף ארגזים");
 
@@ -255,10 +319,10 @@ document.getElementById('calculateBtn').onclick = async () => {
     };
 
     try {
-        const response = await fetch('https://localhost:8443/api/solve', {
+        const response = await authenticatedFetch('https://localhost:8443/api/solve', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({userId: currentUserId, container, boxes: boxesToPack })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: currentUserId, container, boxes: boxesToPack })
         });
 
         const result = await response.json();
@@ -270,16 +334,15 @@ document.getElementById('calculateBtn').onclick = async () => {
             alert("לא נמצא סידור אפשרי");
         }
     } catch (err) {
-        alert("שגיאה בחיבור לשרת החישוב");
+        // שגיאות הרשאה ותוקף כבר מנוהלות בתוך authenticatedFetch
     }
 };
+
 // ═══════════════════════════════════════════════════════════
 //  מסך בנצ'מארק
 // ═══════════════════════════════════════════════════════════
+let benchmarkCases = [];
 
-let benchmarkCases = [];  // כל המקרים שנטענו מהקובץ
-
-// ── פרסור קובץ BR ──────────────────────────────────────────
 function parseBenchmarkFile(text) {
     const tokens = text.trim().split(/\s+/).map(Number);
     let i = 0;
@@ -294,9 +357,9 @@ function parseBenchmarkFile(text) {
         const boxes = [];
         for (let b = 0; b < nBoxes; b++) {
             const typeId = nxt();
-            const l = nxt(); nxt(); // rot_l – לא נשלח לשרת
-            const w = nxt(); nxt(); // rot_w
-            const h = nxt(); nxt(); // rot_h
+            const l = nxt(); nxt();
+            const w = nxt(); nxt();
+            const h = nxt(); nxt();
             const quantity = nxt();
             boxes.push({ typeId, l, w, h, quantity });
         }
@@ -305,7 +368,6 @@ function parseBenchmarkFile(text) {
     return cases;
 }
 
-// ── טעינת קובץ ─────────────────────────────────────────────
 function loadBenchmarkFile(file) {
     if (!file) return;
     document.getElementById('benchmarkFileName').textContent = `📄 ${file.name}`;
@@ -322,7 +384,6 @@ function loadBenchmarkFile(file) {
     reader.readAsText(file);
 }
 
-// ── מילוי ה-UI לאחר טעינה ──────────────────────────────────
 function populateBenchmarkUI() {
     const info    = document.getElementById('benchmarkInfo');
     const stats   = document.getElementById('benchmarkStats');
@@ -333,12 +394,10 @@ function populateBenchmarkUI() {
     logDiv.style.display = 'none';
     logDiv.innerHTML = '';
 
-    // סטטיסטיקות כלליות
     const avgBoxes = (benchmarkCases.reduce((s, c) => s + c.boxes.reduce((ss, b) => ss + b.quantity, 0), 0) / benchmarkCases.length).toFixed(1);
     const types    = benchmarkCases[0]?.boxes.length || 0;
     stats.textContent = `${benchmarkCases.length} מקרים  |  ${types} סוגי ארגזים  |  ממוצע ${avgBoxes} ארגזים למקרה`;
 
-    // מילוי dropdown
     select.innerHTML = '<option value="">— בחר מקרה —</option>';
     benchmarkCases.forEach(c => {
         const opt = document.createElement('option');
@@ -351,7 +410,6 @@ function populateBenchmarkUI() {
     document.getElementById('benchmarkCaseDetails').style.display = 'none';
 }
 
-// ── בחירת מקרה מה-dropdown ─────────────────────────────────
 document.getElementById('benchmarkCaseSelect')?.addEventListener('change', e => {
     const caseNum = parseInt(e.target.value);
     const tc = benchmarkCases.find(c => c.caseNum === caseNum);
@@ -364,7 +422,6 @@ document.getElementById('benchmarkCaseSelect')?.addEventListener('change', e => 
     document.getElementById('benchmarkRunBtn').disabled = false;
 });
 
-// ── חיפוש מקרה ─────────────────────────────────────────────
 document.getElementById('benchmarkCaseFilter')?.addEventListener('input', e => {
     const q = e.target.value.trim();
     const select = document.getElementById('benchmarkCaseSelect');
@@ -374,7 +431,6 @@ document.getElementById('benchmarkCaseFilter')?.addEventListener('input', e => {
     });
 });
 
-// ── הצגת פרטי מקרה ─────────────────────────────────────────
 function showCaseDetails(tc) {
     const details = document.getElementById('benchmarkCaseDetails');
     details.style.display = 'block';
@@ -383,8 +439,7 @@ function showCaseDetails(tc) {
     const cargoVol = tc.boxes.reduce((s, b) => s + b.l * b.w * b.h * b.quantity, 0);
     const util     = ((cargoVol / contVol) * 100).toFixed(1);
 
-    document.getElementById('bcContainer').textContent =
-        `${tc.container.l} × ${tc.container.w} × ${tc.container.h}`;
+    document.getElementById('bcContainer').textContent = `${tc.container.l} × ${tc.container.w} × ${tc.container.h}`;
     document.getElementById('bcTypes').textContent  = tc.boxes.length;
     document.getElementById('bcTotal').textContent  = tc.boxes.reduce((s, b) => s + b.quantity, 0);
     document.getElementById('bcUtil').textContent   = `${util}%`;
@@ -401,14 +456,14 @@ function showCaseDetails(tc) {
     `).join('');
 }
 
-// ── שליחה לשרת ─────────────────────────────────────────────
 async function runBenchmarkCase(tc) {
     const t0 = Date.now();
-    const response = await fetch('https://localhost:8443/api/solve', {
+    const response = await authenticatedFetch('https://localhost:8443/api/solve', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUserId, container: tc.container, boxes: tc.boxes })
     });
+
     const result = await response.json();
     const ms = Date.now() - t0;
 
@@ -425,7 +480,6 @@ async function runBenchmarkCase(tc) {
     return { result, ms, util };
 }
 
-// ── כפתור: הרץ מקרה בודד ───────────────────────────────────
 document.getElementById('benchmarkRunBtn')?.addEventListener('click', async () => {
     const caseNum = parseInt(document.getElementById('benchmarkCaseSelect').value);
     const tc = benchmarkCases.find(c => c.caseNum === caseNum);
@@ -436,8 +490,7 @@ document.getElementById('benchmarkRunBtn')?.addEventListener('click', async () =
     btn.textContent = 'שולח...';
 
     try {
-        const { result, ms, util } = await runBenchmarkCase(tc);
-
+        const { result } = await runBenchmarkCase(tc);
         if (Array.isArray(result) && result.length > 0) {
             lastCalculatedData = result;
             showScreen('result');
@@ -446,14 +499,13 @@ document.getElementById('benchmarkRunBtn')?.addEventListener('click', async () =
             alert(`מקרה #${tc.caseNum} – לא נמצא סידור אפשרי`);
         }
     } catch (err) {
-        alert(`שגיאה: ${err.message}`);
+        // השגיאה מטופלת גלובלית
     } finally {
         btn.disabled = false;
         btn.textContent = 'הרץ מקרה זה ▶';
     }
 });
 
-// ── כפתור: הרץ את כולם ────────────────────────────────────
 document.getElementById('benchmarkRunAllBtn')?.addEventListener('click', async () => {
     if (benchmarkCases.length === 0) return alert('נא לטעון קובץ תחילה');
 
@@ -475,7 +527,7 @@ document.getElementById('benchmarkRunAllBtn')?.addEventListener('click', async (
             logDiv.innerHTML += `<span style="color:#4caf50">✅ #${String(tc.caseNum).padStart(3)}  ${ms}ms  ניצולת: ${util}</span>\n`;
         } catch (err) {
             fail++;
-            logDiv.innerHTML += `<span style="color:#ff4d4d">❌ #${String(tc.caseNum).padStart(3)}  שגיאה: ${err.message}</span>\n`;
+            logDiv.innerHTML += `<span style="color:#ff4d4d">❌ #${String(tc.caseNum).padStart(3)}  שגיאה</span>\n`;
         }
         logDiv.scrollTop = logDiv.scrollHeight;
     }
@@ -489,7 +541,6 @@ document.getElementById('benchmarkRunAllBtn')?.addEventListener('click', async (
     btn.textContent = 'הרץ את כולם ⚡';
 });
 
-// ── Drag & Drop ─────────────────────────────────────────────
 const dropZone = document.getElementById('benchmarkDropZone');
 dropZone?.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = '#e0787a'; });
 dropZone?.addEventListener('dragleave', ()  => { dropZone.style.borderColor = '#555'; });
@@ -504,8 +555,6 @@ document.getElementById('benchmarkFileInput')?.addEventListener('change', e => {
 });
 
 // --- וידאו והקלטה ---
-let finalVideoBlob = null;
-
 function downloadVideo(lengthBox) {
     const stream = renderer.domElement.captureStream(30);
     const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
@@ -543,10 +592,9 @@ document.getElementById('replayBtn')?.addEventListener('click', () => {
 const printBtn = document.getElementById('printTableBtn');
 if (printBtn) {
     printBtn.onclick = () => {
-        if (lastCalculatedData.length === 0)
-            return alert("אין נתונים להדפסה");
-           const win = window.open('', '', 'width=800,height=600');
-           win.document.write(`
+        if (lastCalculatedData.length === 0) return alert("אין נתונים להדפסה");
+        const win = window.open('', '', 'width=800,height=600');
+        win.document.write(`
             <html><head>
             <style>
             table{width:100%;border-collapse:collapse;direction:rtl}
@@ -556,9 +604,8 @@ if (printBtn) {
             <h2>דוח טעינה</h2>
             <table>
             <tr><th>סוג</th><th>שמאל תחתוןX</th><th>שמאל תחתוןY</th><th>שמאל תחתוןZ</th>
-            <th>ימין עליוןX</th><th>ןימין עליוY</th><th>ימין עליוןZ</th>
+            <th>ימין עליוןX</th><th>ימין עליוןY</th><th>ימין עליוןZ</th>
             <th>סיבוב</th></tr>
-
         `);
         lastCalculatedData.forEach(b => {
             win.document.write(`
@@ -571,56 +618,33 @@ if (printBtn) {
                     <td>${b.rightFrontTop[1]}</td>
                     <td>${b.rightFrontTop[2]}</td>
                     <td>${b.remainingSpace}</td>
-
                 </tr>
             `);
         });
-
         win.document.write('</table></body></html>');
-
         win.document.close();
-
         win.print();
-
     };
-
 }
-
-
 
 // --- הורדת CSV ---
 const downloadBtn = document.getElementById('downloadExcelBtn');
 if (downloadBtn) {
     downloadBtn.onclick = () => {
-        if (lastCalculatedData.length === 0)
-
-            return alert("אין נתונים להורדה");
-
-
-
+        if (lastCalculatedData.length === 0) return alert("אין נתונים להורדה");
         let csv = "\uFEFFסוג,X_התחלה,Y_התחלה,Z_התחלה,X_סוף,Y_סוף,Z_סוף\n";
-
         lastCalculatedData.forEach(b => {
-
             csv += `${b.cargoType},${b.leftBackBottom.join(',')},${b.rightFrontTop.join(',')}\n`;
-
         });
-
-
-
         const blob = new Blob([csv], { type: 'text/csv' });
-
         const link = document.createElement('a');
-
         link.href = URL.createObjectURL(blob);
-
         link.download = "packing_report.csv";
-
         link.click();
-
     };
-
 }
+
+// --- אנימציית טעינה ו-Three.js ---
 function runPackingAnimation(data) {
     currentMeshBoxes.forEach(obj => scene.remove(obj));
     currentMeshBoxes = [];
@@ -655,40 +679,45 @@ function runPackingAnimation(data) {
     });
 }
 
-let currentMeshBoxes = [];
 function init3D(data, containerDim) {
-      const containerVolume = containerDim.l * containerDim.w * containerDim.h;
-        let packedVolume = 0;
-        data.forEach(box => {
-            const l = Math.abs(box.rightFrontTop[0] - box.leftBackBottom[0]);
-            const w = Math.abs(box.rightFrontTop[1] - box.leftBackBottom[1]);
-            const h = Math.abs(box.rightFrontTop[2] - box.leftBackBottom[2]);
-            packedVolume += (l * w * h);
-        });
-            const efficiency = ((packedVolume / containerVolume) * 100).toFixed(2);
+    const containerVolume = containerDim.l * containerDim.w * containerDim.h;
+    let packedVolume = 0;
+    data.forEach(box => {
+        const l = Math.abs(box.rightFrontTop[0] - box.leftBackBottom[0]);
+        const w = Math.abs(box.rightFrontTop[1] - box.leftBackBottom[1]);
+        const h = Math.abs(box.rightFrontTop[2] - box.leftBackBottom[2]);
+        packedVolume += (l * w * h);
+    });
+    const efficiency = ((packedVolume / containerVolume) * 100).toFixed(2);
 
+    // ניקוי פאנל סטטיסטיקות קודם אם קיים
+    document.getElementById('stats-panel')?.remove();
 
-        const statsDiv = document.createElement('div');
-        statsDiv.id = 'stats-panel';
-        statsDiv.style = "position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.8); color:white; padding:15px; border-radius:8px; z-index:100; font-family:Arial;";
-        statsDiv.innerHTML =`<h3 style="margin:0 0 10px 0">סיכום טעינה</h3>
+    const statsDiv = document.createElement('div');
+    statsDiv.id = 'stats-panel';
+    statsDiv.style = "position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.8); color:white; padding:15px; border-radius:8px; z-index:100; font-family:Arial;";
+    statsDiv.innerHTML = `
+        <h3 style="margin:0 0 10px 0">סיכום טעינה</h3>
         <p>מכולה: ${containerDim.l}x${containerDim.w}x${containerDim.h}</p>
-        <p>נצילות: <strong style="color:#2f3e46">${efficiency}%</strong></p>
-        `;        document.body.appendChild(statsDiv);
-    if (renderer) document.body.removeChild(renderer.domElement);
-    
+        <p>נצילות: <strong style="color:#e0787a">${efficiency}%</strong></p>
+    `;
+    document.body.appendChild(statsDiv);
+
+    if (renderer) renderer.domElement.remove();
+
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a1a);
-    
+
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
-    camera.position.set(containerDim.l*1.5, containerDim.h * 1.5, containerDim.w * 1.5);
+    camera.position.set(containerDim.l * 1.5, containerDim.h * 1.5, containerDim.w * 1.5);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
+
     controls = new OrbitControls(camera, renderer.domElement);
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    
+
     const light = new THREE.DirectionalLight(0xffffff, 0.5);
     light.position.set(1, 1, 1);
     scene.add(light);

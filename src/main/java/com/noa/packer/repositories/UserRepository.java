@@ -111,7 +111,7 @@ public User getUserByUsername(String username) {
 public void saveResetToken(String email, String token, java.util.Date expiry) {
     collection.updateOne(
         eq("email", email),
-        new Document("", new Document()
+        new Document("$set", new Document()
             .append("resetToken",       token)
             .append("resetTokenExpiry", expiry)
         )

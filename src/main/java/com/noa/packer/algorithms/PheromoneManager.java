@@ -2,10 +2,7 @@ package com.noa.packer.algorithms;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Random;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public class PheromoneManager {
 
@@ -14,7 +11,8 @@ public class PheromoneManager {
     private final double ALPHA = 1.0;
     private final double BETA = 3.0;
     private final double RHO = 0.7; // מקדם התנדפות קבוע
-    private final double RHO = 0.15; // הופחת מ-0.7 כדי לאפשר למידה לטווח ארוך יותר
+    private final double RHO_LOCAL = 0.1;  // Local evaporation
+
     private static final int MAX_TREE_SIZE = 50_000;
 
     public PheromoneManager() {
@@ -42,178 +40,199 @@ public class PheromoneManager {
         // שרשור התחומים לפי איור 6
         return typeDomain.toString() + quantityDomain.toString();
     }
-    public double getPheromone(String stateKey, int cargoId, int currentIteration) {
-       List<PheromoneNode> nodes = pheromoneTree.get(stateKey); 
-       if (nodes != null) {
-     //    List<PheromoneNode> filteredList = nodes.stream()
-     //    .filter(node -> node.getCargoId().equals(cargoId))
-     //    .collect(Collectors.toList());
-        PheromoneNode firstMatch = nodes.stream()
-        .filter(node -> node.getCargoId()==cargoId).findFirst().orElse(null); 
-        PheromoneNode firstMatch = null;
-        // שימוש בלולאה רגילה במקום Stream לשיפור ביצועים באלגוריתם איטרטיבי
-        for (PheromoneNode node : nodes) {
-            if (node.getCargoId() == cargoId) {
-                firstMatch = node;
-                break;
-            }
-        }
-        if (firstMatch != null) {
-         int iterationsPassed = currentIteration - firstMatch.getTa();
-         firstMatch.setTa(currentIteration); // עדכון זמן ה"טא" של הצומת כדי למדוד התנדxxx עתידית
-          double decayFactor = Math.pow(1 - RHO, iterationsPassed);
-           return Math.max(firstMatch.getConcentration() * decayFactor, 1e-6);        }
-    }
-    return 1.0; // ערך ראשוני [8, 9]
-}
 
-    // עדכון גלובלי הכולל ריכוז פרומון ושמירת הצעד הטוב ביותר לפי VR [4, 10, 11]
-//    public void updateGlobalPheromone(String stateKey, int cargoId, int direction,
-//                                      double x, double y, double z,
-//                                      double currentVR, double vUR) {
-//
-//        String decisionKey = stateKey + "-" + cargoId;
-//        PheromoneNode node = pheromoneTree.getOrDefault(decisionKey, new PheromoneNode());
-//
-//        // נוסחת עדכון: (1-rho)*tau + VUR [11]
-//        node.concentration = (1 - RHO) * node.concentration + vUR;
-//
-//        // שמירת הצעד הטוב ביותר למצב זה אם נמצא VR קטן (צפוף) יותר [12, 13]
-//        if (currentVR < node.bestVR) {
-//            node.bestCargoId = cargoId;
-//            node.bestDirection = direction;
-//            node.bestCoords = new double[]{x, y, z};
-//            node.bestVR = currentVR;
-//        }
-//        pheromoneTree.put(decisionKey, node);
-//    }
-    public void updateGlobalPheromone(String stateKey, int cargoId, int direction,
-                                      double x, double y, double z, double currentVR, double vUR,int ta) {
-        // תוקן: אם ה-tree גדול מדי — מחק את הרשומה הישנה ביותר
-          if (pheromoneTree.size() >= MAX_TREE_SIZE) {
-    String weakestKey = null;
-    double lowestAvg = Double.MAX_VALUE;
-        if (pheromoneTree.size() >= MAX_TREE_SIZE) {
-            String weakestKey = null;
-            double lowestAvg = Double.MAX_VALUE;
-            for (Map.Entry<String, List<PheromoneNode>> entry : pheromoneTree.entrySet()) {
-                double sum = 0;
-                for (PheromoneNode n : entry.getValue()) sum += n.getConcentration();
-                double avg = sum / entry.getValue().size();
-                if (avg < lowestAvg) {
-                    lowestAvg = avg;
-                    weakestKey = entry.getKey();
-                }
-            }
-            if (weakestKey != null) pheromoneTree.remove(weakestKey);
-        }
 
-    for (Map.Entry<String, List<PheromoneNode>> entry : pheromoneTree.entrySet()) {
-        double avg = 0;
-        List<PheromoneNode> nodes = entry.getValue();
-        List<PheromoneNode> nodes = pheromoneTree.computeIfAbsent(stateKey, k -> new ArrayList<>());
-        PheromoneNode node = null;
-        for (PheromoneNode n : nodes) {
-            avg += n.getConcentration();
-            if (n.getCargoId() == cargoId) { node = n; break; }
-        }
-        avg = avg / nodes.size();
-
-        if (avg < lowestAvg) {
-            lowestAvg = avg;
-            weakestKey = entry.getKey();
-        }
-    }
-
-    if (weakestKey != null) {
-        pheromoneTree.remove(weakestKey);
-    }
-
-}
-        List<PheromoneNode> nodes = pheromoneTree.computeIfAbsent(stateKey, k -> new ArrayList<>());   
-        if (nodes != null) {
-     //    List<PheromoneNode> filteredList = nodes.stream()
-     //    .filter(node -> node.getCargoId().equals(cargoId))
-     //    .collect(Collectors.toList());
-        PheromoneNode node = nodes.stream().filter(n -> n.getCargoId()==cargoId).findFirst().orElse(null); 
-        if (node != null) {
-            if (currentVR < node.getVr()) {
-            node.setDirection(direction) ;
-            node.setLeftBackBottom(new double[]{x, y, z});
-            node.setVR(currentVR); ;
-            }
-        }
-        else {
-            node = new PheromoneNode(cargoId, direction, x, y, z, x, y, z, currentVR, ta,0);
-            nodes.add(node);
-        }
-
-        // תוקן: וידוא שה-vUR תקין לפני העדכון
-        if (Double.isNaN(vUR) || Double.isInfinite(vUR)) vUR = 0.0;
-        // נוסחת עדכון: (1-rho)*tau + VUR 
-        node.setConcentration((node.getConcentration())*(Math.pow(1-RHO,ta-node.getTa())) + vUR);
-        node.setTa(ta);
-        // תוקן: מניעת ריכוז שלילי או אפסי מאוד
-        if (node.getConcentration() < 1e-6) node.setConcentration( 1e-6);
-    }
-}
-//    public void applyLocalEvaporation(String stateKey, int cargoId) {
-//        String decisionKey = stateKey + "-" + cargoId;
-//        PheromoneNode node = pheromoneTree.get(decisionKey);
-//        if (node != null) {
-//            node.concentration = (1 - RHO) * node.concentration + RHO * 1.0; // tau_0 = 1.0
-//            if (node.concentration < 1e-6) node.concentration = 1e-6;
-//        }
-//    }
-private final double RHO_LOCAL = 0.1; // נמוך מ-RHO הגלובלי (0.7)
-
+    // ✅ LOCAL - בזמן הטעינה
     public void applyLocalEvaporation(String stateKey, int cargoId) {
-        String decisionKey = stateKey + "-" + cargoId;
-        // תוקן: יצירת node אם לא קיים — כדי לרשום evaporation גם על החלטות חדשות
-         List<PheromoneNode> nodes = pheromoneTree.computeIfAbsent(stateKey, k -> new ArrayList<>());   
-        if (nodes != null) {
-     //    List<PheromoneNode> filteredList = nodes.stream()
-     //    .filter(node -> node.getCargoId().equals(cargoId))
-     //    .collect(Collectors.toList());
-        PheromoneNode node = nodes.stream().filter(n -> n.getCargoId()==cargoId).findFirst().orElse(null); 
-        if (node != null) {        // תוקן: שימוש ב-RHO_LOCAL נמוך — evaporation עדין שלא הורס מה שנלמד
-           node.concentration = (1 - RHO_LOCAL) * node.concentration + RHO_LOCAL * 1.0;
-           if (node.concentration < 1e-6) node.concentration = 1e-6;
-        }
-        else {
-            node = new PheromoneNode(cargoId, 0, 0, 0, 0, 0, 0, 0, 1.0, 0,1.0);
-            nodes.add(node);
+        List<PheromoneNode> nodes = pheromoneTree
+                .computeIfAbsent(stateKey, k -> new ArrayList<>());
+
+        PheromoneNode node = nodes.stream()
+                .filter(n -> n.getCargoId() == cargoId)
+                .findFirst()
+                .orElse(null);
+
+        if (node != null) {
+            // τ = (1 - ρ_local) × τ + ρ_local × τ_0
+            node.setConcentration(
+                   node.getConcentration() + RHO_LOCAL * 1.0
+            );
+        } else {
+            // צור node חדש עם ערך ברירת מחדל
+            PheromoneNode newNode = new PheromoneNode(
+                    cargoId, 0, 0, 0, 0, 0, 0, 0, 1.0, 0, 1.0
+            );
+            nodes.add(newNode);
         }
     }
-}
-    public void partialReset(double fraction) {
-        Random rnd = new Random();
+    public void applyGlobalEvaporation() {
         for (List<PheromoneNode> nodes : pheromoneTree.values()) {
             for (PheromoneNode node : nodes) {
-                if (rnd.nextDouble() < fraction) {
-                    node.concentration = 1.0; // חזרה לערך ברירת מחדל
+                // ✅ נדף מ-KOL NOD
+                node.setConcentration(
+                        (1 - RHO) * node.getConcentration()
+                );
+                // בחזרה לכ-1.0 לאט לאט
+                if (node.getConcentration() < 1e-6) {
+                    node.setConcentration(1e-6);
                 }
             }
         }
     }
-    // public static class PheromoneNode {
-    //     double concentration;
-    //     int bestCargoId, bestDirection;
-    //     double[] bestCoords;
-    //     double bestVR = Double.MAX_VALUE; // שואפים למינימום מרחב שיורי [14]
-    //     public Object getCargoId() {
-    //         // TODO Auto-generated method stub
-    //         throw new UnsupportedOperationException("Unimplemented method 'getCargoId'");
-    //     }
-    // }
+    // ✅ GLOBAL - אחרי איטרציה
+    public void updateGlobalPheromone( String stateKey, int cargoId, int direction,
+            double x, double y, double z,
+            double currentVR, double delta, int ta) {
 
+        List<PheromoneNode> nodes = pheromoneTree
+                .computeIfAbsent(stateKey, k -> new ArrayList<>());
+
+        PheromoneNode node = nodes.stream()
+                .filter(n -> n.getCargoId() == cargoId)
+                .findFirst()
+                .orElse(null);
+
+        if (node != null) {
+            // ✅ עדכון כלל ACO: τ = (1 - ρ) × τ_old + Δτ
+            double decayedOld = node.getConcentration() *
+                    Math.pow(1 - RHO, ta - node.getTa());
+
+            node.setConcentration(decayedOld + delta);
+            node.setTa(ta);
+
+            // שמור מטא-מידע
+            if (currentVR < node.getVr()) {
+                node.setVR(currentVR);
+                node.setDirection(direction);
+                node.setLeftBackBottom(new double[]{x, y, z});
+            }
+        } else {
+            // צור node חדש
+            PheromoneNode newNode = new PheromoneNode(
+                    cargoId, direction, x, y, z, x, y, z,
+                    currentVR, ta, delta
+            );
+            nodes.add(newNode);
+        }
+
+
+    }
+
+    // ✅ קריאה של פרומון (עם decay)
+    public double getPheromone(String stateKey, int cargoId ) {
+        List<PheromoneNode> nodes = pheromoneTree.get(stateKey);
+
+        if (nodes != null) {
+            PheromoneNode node = nodes.stream()
+                    .filter(n -> n.getCargoId() == cargoId)
+                    .findFirst()
+                    .orElse(null);
+
+            if (node != null) {
+                // ✅ הפעל DECAY בעת קריאה
+
+
+                return node.getConcentration();
+            }
+        }
+        return 1.0; // ערך ראשוני
+    }
     public double getAlpha() { return ALPHA; }
     public double getBeta() { return BETA; }
+    // בתוך PheromoneManager.java
+    public void updateLocalPheromone(String stateKey, int cargoId) {
+        List<PheromoneNode> nodes = pheromoneTree.get(stateKey);
+        if (nodes == null) return;
 
-  
+        PheromoneNode node = nodes.stream()
+                .filter(n -> n.getCargoId() == cargoId)
+                .findFirst()
+                .orElse(null);
 
-    public void put(String stateKey, PheromoneNode newValue) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'put'");
+        if (node != null) {
+            // עדכון מקומי: אנחנו מחלישים את הפרומון בנתיב הזה כדי שיהיה פחות אטרקטיבי
+            // לנמלה הבאה, וזה מאלץ אותה לחפש נתיבים חדשים (Exploration)
+            double current = node.getConcentration();
+            node.setConcentration(current * (1 - RHO_LOCAL));
+        }
+    }
+    /**
+     * עדכון גלובלי - מחזק את הפרומונים לאורך המסלול של הפתרון הכי טוב.
+     * @param bestSolution הפתרון הטוב ביותר שנמצא באיטרציה הנוכחית
+     * @param delta כמות הפרומון להוסיף (למשל: Q * VUR)
+     *//**
+     *  * עדכון/הוספת פרומון מקומי מיד אחרי הנחה (GSM/ASM).
+     *  * אם קיים node עבור stateKey+cargoId — מעדכן את הריכוז; אחרת יוצר node חדש.
+     *  */
+
+
+//    public void depositLocalPheromone(String stateKey,
+//     int cargoId,
+//     Orientation ori,
+//     double x, double y, double z,
+//     double amount) {
+//
+//     List<PheromoneNode> nodes = pheromoneTree.computeIfAbsent(stateKey, k -> new ArrayList<>());
+//
+//       // חפש node קיים שמתאים לסוג המטען + אותה אוריינטציה + מיקום מעוגל
+//     PheromoneNode node = nodes.stream()
+//                             .filter(n -> n.getCargoId() == cargoId
+//                 && ori.toShortString().equals(n.getOri()) // אם שמרת שדה ori במבנה
+//                 && Math.round(n.getLeftBackBottom()[0]) == Math.round(x)
+//                 && Math.round(n.getLeftBackBottom()[1]) == Math.round(y)
+//                 && Math.round(n.getLeftBackBottom()[2]) == Math.round(z))
+//                             .findFirst()
+//                .orElse(null);
+//
+//     if (node != null) {
+//              // עדכון ריכוז מקומי: מוסיפים כמות קטנה (או ממזגים)
+//     double newConc = node.getConcentration() + amount;
+//     node.setConcentration(newConc);
+//              // עדכן מטא-מידע אם צריך (שמור ta/vr אם רלוונטי)
+//     } else {
+//              // צור node חדש עם שדות בסיסיים
+//     *PheromoneNode newNode = new PheromoneNode(
+//                    cargoId,
+//     0,              // direction (אם אין מספר כיוון, אפשר לשים 0 או להמיר ori ל-int)
+//    x, y, z,        // leftBackBottom
+//     x, y, z,        // some other coords placeholders (אם יש שדות אחרים)
+//     1.0,            // vr (initial)
+//    0,              // ta (iteration index) - caller יכול לעדכן מאוחר יותר
+//     amount          // concentration initial
+//                            );
+//          // אם PheromoneNode תומך בשמירת אוריינטציה, הוסיפי:
+//    newNode.setOri(ori.toShortString());
+//     nodes.add(newNode);
+//
+//              // שמירה על גודל עץ סביר (מניעת זליגת זיכרון)
+//    if (nodes.size() > MAX_TREE_SIZE) {
+//                  // אסטרטגיה פשוטה: הסר את הישן ביותר (או לפי מדד)
+//     nodes.remove(0);
+//    }
+//     }
+//     }
+    public void applyGlobalUpdate(LoadingChain bestSolution, double delta) {
+        if (bestSolution == null || bestSolution.getSteps() == null) return;
+
+        // עוברים על כל "צעד" (ארגז שהונח) בפתרון הטוב ביותר
+        for (LoadingChain.PlacedBoxInfo step : bestSolution.getSteps()) {
+
+            // 1. מחלצים את מילת המצב שהובילה להחלטה הזו
+            String stateKey = step.stateKey;
+
+            // 2. מוצאים את הצומת המתאים בעץ הפרומונים
+            List<PheromoneNode> nodes = pheromoneTree.get(stateKey);
+
+            if (nodes != null) {
+                // 3. מחפשים את הצומת הספציפי שמתייחס לסוג הארגז הזה
+                for (PheromoneNode node : nodes) {
+                    if (node.getCargoId() == step.cargoType) {
+                        // 4. חיזוק הפרומון: מוסיפים את ה-delta
+                        double newConcentration = node.getConcentration() + delta;
+                        node.setConcentration(newConcentration);
+                    }
+                }
+            }
+        }
     }
 }

@@ -16,7 +16,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
+//@CrossOrigin(origins = "*")
 public class PackingController {
 
     @Autowired
@@ -30,6 +30,12 @@ public class PackingController {
     @PostMapping("/solve")
     public ResponseEntity<?> solve(@RequestBody PackingRequest request) {
         try {
+            if (request.userId == null || request.userId.isEmpty()) {
+                return ResponseEntity.status(400)
+                    .body("שגיאה: userId חסר בבקשה");
+            }
+        
+
             // 1. חילוץ מידות המכולה
             double L = request.container.get("l");
             double W = request.container.get("w");
@@ -39,35 +45,38 @@ public class PackingController {
             ObjectId userId = new ObjectId(request.userId);
             Container container = new Container(userId, L, W, H);
             ObjectId containerId = containerRepository.save(container);
-            //  שמירת הארגזים במסד
-
+            
+            // 3. שמירת הארגזים במסד
             for (Map<String, Object> boxMap : request.boxes) {
                 Box box = new Box(
-                userId,
-                Double.parseDouble(boxMap.get("l").toString()),
-                Double.parseDouble(boxMap.get("w").toString()),
-                Double.parseDouble(boxMap.get("h").toString()),
-                (int) boxMap.get("quantity"),
-                Arrays.asList(0,1,2,3,4,5)
-            );
-            boxRepository.save(box);
+                    userId,
+                    Double.parseDouble(boxMap.get("l").toString()),
+                    Double.parseDouble(boxMap.get("w").toString()),
+                    Double.parseDouble(boxMap.get("h").toString()),
+                    (int) boxMap.get("quantity"),
+                    Arrays.asList(0,1,2,3,4,5)
+                );
+                boxRepository.save(box);
             }
-            // 3. המרת ארגזים
+            
+            // 4. המרת ארגזים
             List<CargoType> cargoTypes = convertToCargoTypes(request.boxes);
 
-            // 4. הפעלת האלגוריתם
+            // 5. הפעלת האלגוריתם
             HybridLoadingSystem system = new HybridLoadingSystem();
             LoadingChain result = system.startLoadingProcess(container, cargoTypes);
             System.out.println("Best VUR: " +
                 String.format("%.2f", result.getVUR() * 100) + "%");
 
-            // 5. שמירת התוצאה במסד
+            // 6. שמירת התוצאה במסד
             packingService.saveResult(userId, result);
 
-            // 6. החזרת התוצאה לפרונט
+            // 7. החזרת התוצאה לפרונט
             return ResponseEntity.ok(result.getSteps());
 
         } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("Error in /api/solve: " + e.getMessage());
             return ResponseEntity.status(500)
                 .body("שגיאה בחישוב: " + e.getMessage());
         }

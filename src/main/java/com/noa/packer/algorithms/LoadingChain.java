@@ -1,10 +1,10 @@
 package com.noa.packer.algorithms;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.bson.types.ObjectId;
 
 import com.noa.packer.models.Container;
+import org.bson.types.ObjectId;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class LoadingChain {
     // רשימת הארגזים שהונחו בשרשרת זו (משוואה 10 במקורות)
@@ -14,9 +14,9 @@ public class LoadingChain {
     private ObjectId containerID;
 
     public LoadingChain(Container container) {
-        this.containerID     = container.getId();
+        this.containerID = container.getId();
         this.containerVolume = container.getVolume();
-        }
+    }
 
     // הוספת ארגז לשרשרת ועדכון הנפח (Step 4 ב-GSM/ASM)
 
@@ -53,48 +53,34 @@ public class LoadingChain {
 
         return state.toString();
     }
-    public void addStep(CargoType cargo, Orientation o, Space s, String stateKey, PheromoneManager pheromoneManager) {
+
+    public void addStep(CargoType cargo, Orientation o, Space s, String stateKey) {
         double[] b = {s.x, s.y, s.z};
         double[] t = {s.x + o.l, s.y + o.w, s.z + o.h};
-        double vr = s.getVolume() - (o.l * o.w * o.h);
-        steps.add(new PlacedBoxInfo(cargo.id, o.id, b, t, vr, stateKey));
 
-        // תיקון חישוב הנפח:
+        // ✅ תיקון: VR צריך להיות סכום ה-residual spaces שנוצרו אחרי הנחת הארגז
+        // (Right + Front + Top residuals)
+        double vrRight = Math.max(0, s.L - o.l) * s.W * s.H;
+        double vrFront = Math.max(0, s.W - o.w) * s.L * s.H;
+        double vrTop = Math.max(0, s.H - o.h) * s.L * s.W;
+        double vrTotal = vrRight + vrFront + vrTop;
+
+        steps.add(new PlacedBoxInfo(cargo.id, o.id, b, t, vrTotal, stateKey));
+
+        // תיקון חישוב הנפח - הנפח שהתווסף הוא נפח הארגז בפועל
         totalCargoVolume += (o.l * o.w * o.h);
-    //    pheromoneManager.applyLocalEvaporation(stateKey,cargo.id);
-
-    }
-    public String toJSON() {
-        StringBuilder json = new StringBuilder();
-        json.append("[\n");
-        for (int i = 0; i < steps.size(); i++) {
-            PlacedBoxInfo step = steps.get(i);
-            json.append("  {")
-                    .append("\"typeId\": ").append(step.cargoType).append(", ")
-                    .append("\"xB\": ").append(step.leftBackBottom[0]).append(", ")
-                    .append("\"yB\": ").append(step.leftBackBottom[1]).append(", ")
-                    .append("\"zB\": ").append(step.leftBackBottom[2]).append(", ")
-                    .append("\"xT\": ").append(step.rightFrontTop[0]).append(", ")
-                    .append("\"yT\": ").append(step.rightFrontTop[1]).append(", ")
-                    .append("\"zT\": ").append(step.rightFrontTop[2])
-                    .append("}");
-            if (i < steps.size() - 1) json.append(",");
-            json.append("\n");
-        }
-        json.append("]");
-        return json.toString();
     }
     public List<PlacedBoxInfo> getSteps() {
         return steps;
     }
-    // מחלקת עזר פנימית לשמירת נתוני כל ארגז (משוואה 10)
-    public static class PlacedBoxInfo {
+    public class PlacedBoxInfo {
         public int cargoType; // k
         public int direction; // d
         public double[] leftBackBottom; // xB, yB, zB
         public double[] rightFrontTop;  // xT, yT, zT
         public double remainingSpace;   // VRi
         public String stateKey;
+
         public PlacedBoxInfo(int k, int d, double[] b, double[] t, double vr, String stateKey) {
             this.cargoType = k;
             this.direction = d;

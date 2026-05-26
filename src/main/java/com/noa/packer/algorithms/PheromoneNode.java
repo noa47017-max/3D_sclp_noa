@@ -3,7 +3,8 @@ public class PheromoneNode {
     int cargoId;              // סוג המטען
     int d;              // כיוון ההעמסה
     double[] leftBackBottom; // xB, yB, zB
-    double xT, yT, zT;  // קואורדינטות פינה עליונה (אחרי התאמת תנוחה)
+    double xT, yT, zT;
+    // קואורדינטות פינה עליונה (אחרי התאמת תנוחה)
     double vr;  
     double concentration;        // נפח שנותר בשכבה (Remaining Space)
     int ta;
@@ -28,6 +29,7 @@ public class PheromoneNode {
     public void setVR(double currentVR) {this.vr = currentVR;}
     public int getTa(){return this.ta;}
     public void setTa(int ta) { this.ta = ta; }
+
 
 }
 

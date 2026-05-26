@@ -5,4 +5,7 @@ public class Orientation {
     public Orientation(int id, double l, double w, double h) {
         this.id = id; this.l = l; this.w = w; this.h = h;
     }
+    public String toShortString() {
+        return String.format("%d", id);
+    }
 }

@@ -1,10 +1,37 @@
 package com.noa.packer.algorithms;
 
+import ch.qos.logback.core.joran.sanity.Pair;
+
 import java.util.List;
+
+import static java.lang.Math.abs;
+
 public class GSMStrategy {
     /**
      * בחירת הארגז עם הנפח הגדול ביותר מתוך רשימת הארגזים הזמינים [5]
      */
+    public static class Pair<A, B> {
+
+        public final A first;
+
+        public final B second;
+        public Pair(A a, B b) {
+            this.first = a;
+            this.second = b;
+        }
+
+        public static <A, B> Pair<A, B> of(A a, B b) {
+            return new Pair<>(a, b);
+        }
+
+    }
+
+    private static final double EPS = 1e-9;
+
+    private static final double MIN_VOLUME_THRESHOLD = 1e-6;
+// אם אין לך ערך גלובלי, קבעי את maxCargoVolume לפי המקרה (או חשבי דינמית)
+
+    private static final double maxCargoVolume = 1000.0; //
 //    public CargoType selectCargo(Space currentSpace, List<CargoType> availableCargoes) {
 //        CargoType bestCargo = null;
 //        double maxVolume = -1.0;
@@ -21,23 +48,121 @@ public class GSMStrategy {
 //        }
 //        return bestCargo;
 //    }
-    public CargoType selectCargo(Space currentSpace, List<CargoType> availableCargoes) {
+private String currentCargoState(List<CargoType> allTypes, PheromoneManager pm) {
+    // פשוט קורא למנהל הפרומונים כדי לייצר את מילת המצב
+    return pm.generateStateWord(allTypes);
+}
+
+    // -----------------------------
+// גרסה מתוקנת של selectCargo (חתימה מעט שונה)
+// שימי לב: הוספתי פרמטר allTypes כדי ליצור stateKey
+// -----------------------------
+    public Pair<CargoType, Orientation> selectCargo(
+            Space currentSpace,
+            List<CargoType> availableCargoes, boolean isNewLayer,
+            PheromoneManager pm
+            ) {
+        double localDeposit= 0.005;
+        CargoType bestCargo = null;
+        Orientation bestOri = null;
+
+        // אם שכבה חדשה: בחר לפי נפח מקסימלי (GSM לפי המאמר)
+        if (isNewLayer) {
+            double bestVol = -1;
+            for (CargoType c : availableCargoes) {
+                if (c.quantity <= 0) continue;
+                // קבל את האוריינטציה הטובה ביותר עבור החלל (אם יש לך OrientationOptimizer)
+                Orientation ori = new OrientationOptimizer().getBestOrientation(currentSpace, c);
+                if (ori == null) continue;
+                double vol = c.getVolume();
+                if (vol > bestVol) {
+                    bestVol = vol;
+                    bestCargo = c;
+                    bestOri = ori;
+                }
+            }
+        } else {
+            // בתוך אותה שכבה: דירוג לפי localFillScore + נפח (נמוך = טוב)
+            double wArea = 0.6, wVol = 0.4;
+            double bestScore = Double.POSITIVE_INFINITY;
+
+            for (CargoType c : availableCargoes) {
+                if (c.quantity <= 0) continue;
+                Orientation ori = new OrientationOptimizer().getBestOrientation(currentSpace, c);
+                if (ori == null) continue;
+                double local = localFillScore(c, ori, currentSpace); // נמוך = טוב
+                double volNorm = 1.0 - (c.getVolume() / Math.max(EPS, currentSpace.getVolume())); // נורמליזציה
+                double score = wArea * local + wVol * volNorm;
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestCargo = c;
+                    bestOri = ori;
+                }
+            }
+        }
+
+        if (bestCargo == null) return null;
+
+        // עדכון פרומון מקומי מיד אחרי בחירה (GSM תורם ל‑ASM)
+        String stateKey = currentCargoState(availableCargoes, pm);
+//        pm.applyLocalEvaporation(stateKey, bestCargo.id);
+//        pm.depositLocalPheromone(stateKey, bestCargo.id, bestOri,
+//                currentSpace.x, currentSpace.y, currentSpace.z, localDeposit);
+
+        return Pair.of(bestCargo, bestOri);
+    }
+    private String makePheromoneKey(String stateKey, int cargoId, Orientation ori, Space s) {
+        int rx = (int)Math.round(s.x);
+        int ry = (int)Math.round(s.y);
+        int rz = (int)Math.round(s.z);
+        return stateKey + "|" + cargoId + "|" + ori.toShortString() + "@" + rx + "," + ry + "," + rz;
+    }
+    private double localFillScore(CargoType c, Orientation ori, Space s) {
+        // קבל מידות הקופסה לפי האוריינטציה
+        double boxL = ori.l;
+        double boxW = ori.w;
+        double boxH = ori.h;
+
+        // מידות החלל
+        double spaceY = s.W;   // רוחב (y)
+        double spaceZ = s.H;  // גובה (z)
+
+        // שאריות אחרי הנחה
+        double remY = spaceY %boxW;
+        double remZ = spaceZ % boxH;
+
+        // נורמליזציה
+        double scoreY = remY / Math.max(EPS, spaceY);
+        double scoreZ = remZ / Math.max(EPS, spaceZ);
+
+        // משקלות לפי נוסחה 8: אפשר לכוונן
+        double wY = 0.5;
+        double wZ = 0.5;
+
+        // אפשר לשקלל גם לפי גודל השארית הממשי (כפי שהמאמר מציע)
+        double result = wY * scoreY * boxH + wZ * scoreZ * boxW;
+
+        return result;
+    }
+    public CargoType selectCargo7(Space currentSpace, List<CargoType> availableCargoes) {
         CargoType bestCargo = null;
         double maxArea = -1.0;
 
         for (CargoType cargo : availableCargoes) {
             if (cargo.quantity > 0 && cargo.canFit(currentSpace)) {
-                // שינוי: במקום getVolume, אנחנו מחפשים את שטח הבסיס הגדול ביותר
-                // זה עוזר ליצור שכבות יציבות ושטוחות
+                // ✅ בחר לפי base area (L×W) בלבד - זה ממלא שכבות וממונע "ארגזים באוויר"
+                // זה עוזר ליצור שכבות יציבות ושטוחות ללא חורים
                 double bestAreaForCargo = getBestBaseArea(cargo, currentSpace);
-                if (cargo.getVolume() > maxArea) {
-                    maxArea = cargo.getVolume();
+                if (bestAreaForCargo > maxArea) {
+                    // ✅ תיקון חשוב: עדכן את base area, לא volume!
+                    maxArea = bestAreaForCargo;
                     bestCargo = cargo;
                 }
             }
         }
         return bestCargo;
     }
+
     private double getBestBaseArea(CargoType cargo, Space space) {
         double best = -1.0;
 
@@ -61,4 +186,17 @@ public class GSMStrategy {
         }
         return best;
     }
+    public void selectCargo3(
+            Space currentSpace,
+            CargoType c, boolean isNewLayer,
+            PheromoneManager pm,
+            double layerHeight
+    ) {
+
+      double  U = c.getVolume() / currentSpace.getVolume();
+//      double  A = 1 - abs(c.l - layerHeight) / layerHeight;
+      double  D = 1 - (abs(currentSpace.L-c.l) + abs(currentSpace.W-c.w) + abs(currentSpace.H-c.h)) / (currentSpace.L+currentSpace.W+currentSpace.H);
+
+    }
+
 }
