@@ -24,3 +24,4 @@ public class Space {
     public Space getFrontResidual(Orientation o) { return new Space(x + o.l, y, z, L - o.l, W, H); }
     
 }
+

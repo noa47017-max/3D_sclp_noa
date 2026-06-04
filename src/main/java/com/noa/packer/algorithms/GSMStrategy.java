@@ -60,46 +60,51 @@ private String currentCargoState(List<CargoType> allTypes, PheromoneManager pm) 
     public Pair<CargoType, Orientation> selectCargo(
             Space currentSpace,
             List<CargoType> availableCargoes, boolean isNewLayer,
-            PheromoneManager pm
+            PheromoneManager pm,
+            List<LoadingChain.PlacedBoxInfo> placed
             ) {
         double localDeposit= 0.005;
         CargoType bestCargo = null;
         Orientation bestOri = null;
 
         // אם שכבה חדשה: בחר לפי נפח מקסימלי (GSM לפי המאמר)
-        if (isNewLayer) {
-            double bestVol = -1;
-            for (CargoType c : availableCargoes) {
-                if (c.quantity <= 0) continue;
-                // קבל את האוריינטציה הטובה ביותר עבור החלל (אם יש לך OrientationOptimizer)
-                Orientation ori = new OrientationOptimizer().getBestOrientation(currentSpace, c);
-                if (ori == null) continue;
-                double vol = c.getVolume();
-                if (vol > bestVol) {
-                    bestVol = vol;
-                    bestCargo = c;
-                    bestOri = ori;
-                }
-            }
-        } else {
+//        if (isNewLayer) {
+//            double bestVol = -1;
+//            for (CargoType c : availableCargoes) {
+//                if (c.quantity <= 0) continue;
+//                // קבל את האוריינטציה הטובה ביותר עבור החלל (אם יש לך OrientationOptimizer)
+//                Orientation ori = new OrientationOptimizer().getBestOrientation(currentSpace, c);
+//                if (ori == null) continue;
+//                double vol = c.getVolume();
+//                if (vol > bestVol) {
+//                    bestVol = vol;
+//                    bestCargo = c;
+//                    bestOri = ori;
+//                }
+//            }
+//        } else {
             // בתוך אותה שכבה: דירוג לפי localFillScore + נפח (נמוך = טוב)
             double wArea = 0.6, wVol = 0.4;
-            double bestScore = Double.POSITIVE_INFINITY;
+            double bestScore = Double.NEGATIVE_INFINITY;;
+            final OrientationOptimizer orientationOptimizer = new OrientationOptimizer(); // שדה במחלקה
 
             for (CargoType c : availableCargoes) {
                 if (c.quantity <= 0) continue;
-                Orientation ori = new OrientationOptimizer().getBestOrientation(currentSpace, c);
+                Orientation ori = orientationOptimizer.getBestOrientation(currentSpace, c);
+
                 if (ori == null) continue;
                 double local = localFillScore(c, ori, currentSpace); // נמוך = טוב
                 double volNorm = 1.0 - (c.getVolume() / Math.max(EPS, currentSpace.getVolume())); // נורמליזציה
-                double score = wArea * local + wVol * volNorm;
-                if (score < bestScore) {
+//                double score = wArea * local + wVol * volNorm;
+                double score = evaluate(currentSpace, c, ori, placed);
+
+                if (score > bestScore) {
                     bestScore = score;
                     bestCargo = c;
                     bestOri = ori;
                 }
             }
-        }
+//        }
 
         if (bestCargo == null) return null;
 
@@ -110,6 +115,121 @@ private String currentCargoState(List<CargoType> allTypes, PheromoneManager pm) 
 //                currentSpace.x, currentSpace.y, currentSpace.z, localDeposit);
 
         return Pair.of(bestCargo, bestOri);
+    }
+    private double evaluate(Space s, CargoType c, Orientation o,List<LoadingChain.PlacedBoxInfo> placed) {
+
+        // 1. ניצול נפח
+        double U = c.getVolume() / s.getVolume();
+
+        // 2. התאמת צלעות (fit גיאומטרי)
+        double D =
+                1 - (
+                        abs(s.L - o.l) +
+                                abs(s.W - o.w) +
+                                abs(s.H - o.h)
+                ) / (s.L + s.W + s.H);
+
+        // 3. התאמה לשכבה (גובה)
+        double layer = 1 - abs(o.h - s.H) / s.H;
+
+        // 4. Contact Area (קירוב פשוט ויציב)
+        double contact = estimateContact(s, o,placed );
+        double fragmentationPenalty = 0;
+
+        double remL = s.L % o.l;
+        double remW = s.W % o.w;
+        double remH = s.H % o.h;
+
+        if (remL > 1 && remL < Global.MIN_DIM)
+            fragmentationPenalty += 0.03;
+
+        if (remW > 1 && remW < Global.MIN_DIM)
+            fragmentationPenalty += 0.03;
+
+        if (remH > 1 && remH < Global.MIN_DIM)
+            fragmentationPenalty += 0.03;
+        // 5. שילוב סופי
+        return 0.40 * U +
+                0.30 * contact +
+                0.20 * D +
+                0.10 * layer - fragmentationPenalty;
+    }
+    private double estimateContact(
+            Space s,
+            Orientation o,
+            List<LoadingChain.PlacedBoxInfo> placed
+    ) {
+
+        double contact = 0;
+
+        // מיקום הארגז החדש
+        double x1 = s.x;
+        double y1 = s.y;
+        double z1 = s.z;
+
+        double x2 = x1 + o.l;
+        double y2 = y1 + o.w;
+        double z2 = z1 + o.h;
+
+        // =========================
+        // 1. רצפה
+        // =========================
+        if (z1 == 0) {
+            contact += o.l * o.w;
+        }
+
+        // =========================
+        // 2. מגע עם ארגזים קיימים
+        // =========================
+        for (LoadingChain.PlacedBoxInfo b : placed) {
+
+            double bx1 = b.leftBackBottom[0];
+            double by1 = b.leftBackBottom[1];
+            double bz1 = b.leftBackBottom[2];
+
+            double bx2 = b.rightFrontTop[0];
+            double by2 = b.rightFrontTop[1];
+            double bz2 = b.rightFrontTop[2];
+
+            // =====================================
+            // הארגז החדש יושב על הארגז הקיים
+            // =====================================
+            boolean touchingTop =
+                    Math.abs(z1 - bz2) < EPS;
+
+            if (touchingTop) {
+
+                double overlapX =
+                        overlapLength(x1, x2, bx1, bx2);
+
+                double overlapY =
+                        overlapLength(y1, y2, by1, by2);
+
+                if (overlapX > 0 && overlapY > 0) {
+
+                    contact += overlapX * overlapY;
+                }
+            }
+        }
+
+        // =========================
+        // נרמול
+        // =========================
+        double maxPossible =
+                2 * (o.l * o.w +
+                        o.l * o.h +
+                        o.w * o.h);
+
+        return contact / Math.max(EPS, maxPossible);
+    }
+    private double overlapLength(
+            double a1, double a2,
+            double b1, double b2
+    ) {
+        return Math.max(
+                0,
+                Math.min(a2, b2) - Math.max(a1, b1)
+        );
     }
     private String makePheromoneKey(String stateKey, int cargoId, Orientation ori, Space s) {
         int rx = (int)Math.round(s.x);

@@ -217,7 +217,67 @@ public class SpaceManager {
 
         return residuals;                              // מחזירים את שלושת חללי השארית
     }
+    public List<Space> splitIntoResidualsNewLayerVU(Space current, Orientation o) {
 
+        List<Space> residuals = new ArrayList<>();     // רשימת חללים חדשה שנחזיר
+        double x = current.x;                          // שומרים את נקודת ההתחלה X
+        double y = current.y;                          // שומרים את נקודת ההתחלה Y
+        double z = current.z;                          // שומרים את נקודת ההתחלה Z
+        double L = current.L;                          // אורך החלל
+        double W = current.W;                          // רוחב החלל
+        double H = current.H;                          // גובה החלל
+        double l = o.l;                                // אורך הארגז בכיוון שנבחר
+        double w = o.w;                                // רוחב הארגז בכיוון שנבחר
+        double h = o.h;                                // גובה הארגז בכיוון שנבחר
+
+
+        // RIGHT SPACE — חלל ימני
+        if (W - w > 1e-6) {                            // אם נשאר רוחב מלפנים
+            residuals.add(new Space(
+                    x,                                 // אותו X
+                    y + w,                             // מתחיל אחרי הארגז בציר Y
+                    z,                                 // אותו Z
+                    l,                                 // כל האורך
+                    W - w,                             // הרוחב שנותר
+                    H                                  // כל הגובה
+            ));
+        }
+        // TOP SPACE — חלל עליון
+        if (H - h > 1e-6) {                            // אם נשאר גובה מעל הארגז
+            residuals.add(new Space(
+                    x,                                 // אותו X
+                    y,                                 // אותו Y
+                    z + h,                             // מתחיל מעל הארגז
+                    l,                                 // כל האורך
+                    W,                                 // כל הרוחב
+                    H - h                              // הגובה שנותר
+            ));
+        }
+
+        return residuals;                              // מחזירים את שלושת חללי השארית
+    }
+    public Space splitIntoResidualsNewLayerVI(Space current, Orientation o) {
+
+        double x = current.x;                          // שומרים את נקודת ההתחלה X
+        double y = current.y;                          // שומרים את נקודת ההתחלה Y
+        double z = current.z;                          // שומרים את נקודת ההתחלה Z
+        double L = current.L;                          // אורך החלל
+        double W = current.W;                          // רוחב החלל
+        double H = current.H;                          // גובה החלל
+        double l = o.l;                                // אורך הארגז בכיוון שנבחר
+        double w = o.w;                                // רוחב הארגז בכיוון שנבחר
+        double h = o.h;                                // גובה הארגז בכיוון שנבחר
+
+        Space residuals =new Space(
+                    x + l,                             // מתחיל אחרי הארגז בציר X
+                    y,                                 // אותו Y
+                    z,                                 // אותו Z
+                    L - l,                             // האורך שנותר
+                    W,                                 // כל הרוחב
+                    H                                  // כל הגובה
+            );
+        return residuals;                              // מחזירים את שלושת חללי השארית
+    }
     // ============================================================
     // 2. מיזוג חללים — Left–Right ו–Front–Rear
     // ============================================================
@@ -310,7 +370,14 @@ public class SpaceManager {
 
         return merged;                                 // מחזירים את הרשימה אחרי מיזוגים
     }
-
+    public List<Space> SpacesVR(List<Space> spaces, double layerx) {
+        List<Space> result = new ArrayList<>();        // רשימת תוצאה
+        for (Space s : spaces) {
+             s.L =s.L +layerx;
+             result.add(s);
+        }
+        return result;
+    }
     // ============================================================
     // 3. ניקוי חללים — הסרת חללים קטנים / מוכלים
     // ============================================================
@@ -323,7 +390,7 @@ public class SpaceManager {
 
             Space s1 = spaces.get(i);                  // חלל נוכחי
 
-            if (s1.L < 1.0 || s1.W < 1.0 || s1.H < 1.0)
+            if (s1.L < 1e-4 || s1.W < Global.MIN_DIM || s1.H < Global.MIN_DIM)
                 continue;                              // מסירים חללים קטנים מדי
 
             boolean contained = false;                 // דגל — האם החלל מוכל

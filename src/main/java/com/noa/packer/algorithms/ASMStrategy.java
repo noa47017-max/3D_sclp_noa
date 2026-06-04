@@ -126,6 +126,7 @@ public CargoType selectCargo(Space space, List<CargoType> cargoes, String stateK
                 weights.put(cargo, weight);
                 totalWeight += weight;
             }
+
         }
         // PheromoneNode newValue = new PheromoneNode(
         //     selectedCargo.id, selectedCargo.direction, pos.x, pos.y, pos.z, topPos.x, topPos.y, topPos.z, vr);
