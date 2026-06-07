@@ -30,7 +30,7 @@
         <div style="margin-top:12px; font-size:13px; display:flex; justify-content:space-between;">
            <button id="goToRegisterBtn" style="background:none; border:none; color:#e0787a; cursor:pointer; font-size:13px; padding:0; text-decoration:underline;">הרשמה למערכת ✨</button>
 
-<button id="forgotPasswordBtn" >שכחתי סיסמא 🔑</button>
+<button id="forgotPasswordBtn" >שכחתי סיסמא</button>
         </div>
     </div>
 </div>
@@ -74,54 +74,89 @@
             הרץ קובץ בנצ'מארק 📂
         </button>
         <hr>
-        <h3>היסטוריית סידורים:</h3>
-        <div id="history-list">
-            <p>טוען נתונים...</p>
-        </div>
+        <button id="viewHistoryBtn" style="background:#555;">היסטוריית סידורים </button>
     </div>
 </div>
-
-<div id="creator-screen" class="overlay" style="display:none;">
-    <div class="modal">
-        <h3>הגדרות מכולה</h3>
-        <div style="display: flex; gap: 5px;">
-            <input type="number" id="contL" placeholder="אורך" value="587">
-            <input type="number" id="contW" placeholder="רוחב" value="235">
-            <input type="number" id="contH" placeholder="גובה" value="220">
-        </div>
-
-        <hr style="width:100%; border:0; border-top:1px solid #444; margin:10px 0;">
-
-        <h3>הוספת סוג ארגז</h3>
-        <input type="number" id="newBoxL" placeholder="אורך">
-        <input type="number" id="newBoxW" placeholder="רוחב">
-        <input type="number" id="newBoxH" placeholder="גובה">
-        <input type="number" id="newBoxQty" placeholder="כמות">
-        <button id="addBoxBtn" style="background: #e0787a; font-size: 20px;">+</button>
-        <div style="margin: 15px 0; padding: 10px; border: 1px dashed #555; border-radius: 8px;">
-            <label for="jsonFileInput" style="display: block; margin-bottom: 5px; color: #ccc;">ייבוא ארגזים מקובץ JSON:</label>
-            <input type="file" id="jsonFileInput" accept=".json" style="color: white; font-size: 12px;">
-        </div>
-        <h3>רשימת הארגזים לסידור:</h3>
-
-        <div class="table-wrapper" id="boxesTableContainer">
-            <table id="boxesTable">
+<div id="history-screen" class="overlay" style="display:none;">
+    <div class="modal" style="max-width:500px; width:90%;">
+        <h2>היסטוריית סידורים </h2>
+        <div id="history-list-container" class="table-wrapper" style="max-height:400px;">
+            <table style="width:100%;">
                 <thead>
                 <tr>
-                    <th>אורך</th>
-                    <th>רוחב</th>
-                    <th>גובה</th>
-                    <th>כמות</th>
-                    <th>פעולה</th>
+                    <th>תאריך</th>
+                    <th>ניצולת</th>
+                    <th>צפייה</th>
                 </tr>
                 </thead>
-                <tbody id="boxesTableBody">
+                <tbody id="historyTableBody">
                 </tbody>
             </table>
         </div>
-
-        <button id="calculateBtn">חשב והצג הדמיה</button>
+        <button id="historyBackBtn" style="background:#333; margin-top:10px;">חזור לתפריט ←</button>
     </div>
+</div>
+<div id="creator-screen" class="overlay" style="display:none;">
+    <div class="modal creator-modal"> <h2>ניהול ותכנון המכולה</h2>
+    
+    <div style="margin-bottom: 15px; background: #2f3e46; padding: 10px; border-radius: 8px;">
+        <h4 style="margin: 0 0 8px 0; color: #e0787a;">מידות המכולה (סמ"ק)</h4>
+        <div style="display: flex; gap: 5px;">
+            <input type="number" id="contL" placeholder="אורך" value="587">
+            <input type="number" id="contW" placeholder="רוחב" value="233">
+            <input type="number" id="contH" placeholder="גובה" value="220">
+        </div>
+    </div>
+
+    <div class="creator-layout">
+        
+        <div class="form-section">
+            <h3>הוספת סוג ארגז</h3>
+            <input type="number" id="newBoxL" placeholder="אורך (L)">
+            <input type="number" id="newBoxW" placeholder="רוחב (W)">
+            <input type="number" id="newBoxH" placeholder="גובה (H)">
+            <input type="number" id="newBoxQty" placeholder="כמות">
+            
+            <select id="newBoxRotation" style="width: 100%; padding: 10px; margin: 5px 0; background: #2f3e46; color: white; border: 1px solid #e0787a; border-radius: 6px; box-sizing: border-box;">
+                <option value="6">שש-כיווני (0, 1, 2, 3, 4, 5)</option>
+                <option value="2">דו-כיווני (0, 1)</option>
+                <option value="1">חד-כיווני (0)</option>
+            </select>
+            
+            <button id="addBoxBtn" style="background: #e0787a; font-size: 18px; width: 100%; margin-top: 5px;">הוסף ארגז +</button>
+            
+            <div style="margin-top: 15px; padding: 8px; border: 1px dashed #e0787a; border-radius: 8px;">
+                <label for="jsonFileInput" style="display: block; margin-bottom: 5px; color: #ccc; font-size: 12px;">ייבוא מקובץ JSON:</label>
+                <input type="file" id="jsonFileInput" accept=".json" style="color: white; font-size: 12px; padding: 3px;">
+            </div>
+        </div>
+
+        <div class="table-section">
+            <h3>רשימת הארגזים לסידור:</h3>
+            <div class="table-wrapper" id="boxesTableContainer">
+                <table id="boxesTable">
+                    <thead>
+                        <tr>
+                            <th>אורך</th>
+                            <th>רוחב</th>
+                            <th>גובה</th>
+                            <th>כמות</th>
+                            <th>סיבוב</th>
+                            <th>פעולה</th>
+                        </tr>
+                    </thead>
+                    <tbody id="boxesTableBody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+    <div style="display:flex; gap:10px; margin-top:15px; width:100%;">
+        <button id="calculateBtn" style="flex:2; background:#2a9d8f; font-weight:bold;">בצע חישוב סידור פריסה 🚀</button>
+        <button id="creatorBackBtn" style="flex:1; background:#444;">חזור</button>
+    </div>
+</div>
 </div>
 <!-- ─────────────────── מסך בנצ'מארק ─────────────────── -->
 <div id="benchmark-screen" class="overlay" style="display:none;">

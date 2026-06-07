@@ -7,7 +7,6 @@ import java.util.List;
 public class PackingResult {
 
     private ObjectId id;
-    private ObjectId userId;
     private ObjectId containerId;
     private double   totalCargoVolume;
     private double   vur;
@@ -16,10 +15,9 @@ public class PackingResult {
 
     public PackingResult() {}
 
-    public PackingResult(ObjectId userId, ObjectId containerId,
+    public PackingResult( ObjectId containerId,
                          double containerVolume, double totalCargoVolume,
                          List<PlacedBoxData> placements) {
-        this.userId           = userId;
         this.containerId      = containerId;
         this.totalCargoVolume = totalCargoVolume;
         this.vur              = totalCargoVolume / containerVolume;
@@ -57,8 +55,7 @@ public class PackingResult {
     // Getters & Setters
     public ObjectId getId()                              { return id; }
     public void     setId(ObjectId id)                   { this.id = id; }
-    public ObjectId getUserId()                          { return userId; }
-    public void     setUserId(ObjectId userId)           { this.userId = userId; }
+
     public ObjectId getContainerId()           { return containerId; }
     public void     setContainerId(ObjectId v) { this.containerId = v; }
     public double   getTotalCargoVolume()                { return totalCargoVolume; }

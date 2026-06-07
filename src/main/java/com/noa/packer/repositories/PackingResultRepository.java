@@ -2,6 +2,7 @@ package com.noa.packer.repositories;
 
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Indexes;
 import com.noa.packer.config.MongoConnection;
 import com.noa.packer.models.PackingResult;
 import org.bson.Document;
@@ -58,7 +59,6 @@ public class PackingResultRepository {
             placementDocs.add(placementToDocument(p));
 
         return new Document()
-            .append("userId",          r.getUserId())
             .append("containerId",     r.getContainerId())  // ← containerId בלבד
             .append("totalCargoVolume",r.getTotalCargoVolume())
             .append("vur",             r.getVur())
@@ -76,7 +76,6 @@ public class PackingResultRepository {
 
         PackingResult r = new PackingResult();
         r.setId(doc.getObjectId("_id"));
-        r.setUserId(doc.getObjectId("userId"));
         r.setContainerId(doc.getObjectId("containerId"));  // ← containerId בלבד
         r.setTotalCargoVolume(doc.getDouble("totalCargoVolume"));
         r.setVur(doc.getDouble("vur"));
@@ -93,14 +92,7 @@ public class PackingResultRepository {
         return doc.getObjectId("_id");
     }
 
-    // 📖 כל התוצאות של משתמש (לפי תאריך יורד)
-    public List<PackingResult> getByUserId(ObjectId userId) {
-        List<PackingResult> results = new ArrayList<>();
-        for (Document doc : collection.find(eq("userId", userId))
-                                      .sort(descending("createdAt")))
-            results.add(documentToResult(doc));
-        return results;
-    }
+
 
     // 🔍 תוצאה בודדת לפי ID
     public PackingResult getById(ObjectId id) {
@@ -112,5 +104,14 @@ public class PackingResultRepository {
     public void delete(ObjectId id) {
         collection.deleteOne(eq("_id", id));
         System.out.println("🗑️ Packing result deleted!");
+    }
+      // 📖 כל התוצאות של משתמש מסוים, מהחדש לישן
+    // 📖 כל התוצאות של משתמש מסוים, מהחדש לישן
+    public List<PackingResult> getByUserId(ObjectId userId) {
+        List<PackingResult> results = new ArrayList<>();
+        for (Document doc : collection.find(eq("userId", userId))
+                                      .sort(descending("createdAt")))
+            results.add(documentToResult(doc));
+        return results;
     }
 }

@@ -90,3 +90,64 @@ button:hover { background: #e0787a; }
 }
 
 #closeVizBtn:hover { background: #e0787a; }
+/* הרחבת המודל ספציפית בעמוד יצירת הארגזים */
+.creator-modal {
+    width: 850px; /* רוחב מספק לשני הטורים */
+    max-width: 95vw;
+    max-height: 95vh;
+}
+
+/* הגדרת המעטפת הדו-טורית */
+.creator-layout {
+    display: flex;
+    flex-direction: row; /* הצגה זה לצד זה */
+    gap: 25px;
+    width: 100%;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+/* טור הטופס (ימין) */
+.form-section {
+    flex: 1;
+    min-width: 220px;
+    text-align: right;
+}
+
+/* טור הטבלה (שמאל) */
+.table-section {
+    flex: 1.8; /* נותן לטבלה מעט יותר מרחב מהטופס */
+    min-width: 380px;
+    border-right: 1px solid rgba(224, 120, 122, 0.3); /* קו הפרדה עדין בצד ימין */
+    padding-right: 20px;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+}
+
+/* התאמת גובה גלילת הטבלה למבנה החדש */
+.table-section .table-wrapper {
+    max-height: 280px; /* הגבהת אזור הגלילה מאחר והרוחב גדל */
+    overflow-y: auto;
+    border: 1px solid #e0787a;
+    border-radius: 6px;
+    background: #1a1a1a;
+}
+
+/* סידור רספונסיבי למסכים קטנים במיוחד (למקרה שהמסך צר) */
+@media (max-width: 768px) {
+    .creator-modal {
+        width: 95vw;
+    }
+    .creator-layout {
+        flex-direction: column; /* קריסה חזרה לטור אחד במסכים קטנים */
+        overflow-y: auto;
+    }
+    .table-section {
+        border-right: none;
+        border-top: 1px solid #e0787a;
+        padding-right: 0;
+        padding-top: 15px;
+        min-width: 100%;
+    }
+}

@@ -10,9 +10,10 @@ public class PheromoneManager {
     // פרמטרים לפי Table 2 במאמר [3]
     private final double ALPHA = 1.0;
     private final double BETA = 3.0;
-    private final double RHO = 0.7; // מקדם התנדפות קבוע
+    private final double RHO = 0.3; // מקדם התנדפות קבוע
     private final double RHO_LOCAL = 0.1;  // Local evaporation
-
+    int Q = 7;
+    private final double TAU0 = 1.0;
     private static final int MAX_TREE_SIZE = 50_000;
 
     public PheromoneManager() {
@@ -24,7 +25,6 @@ public class PheromoneManager {
         StringBuilder quantityDomain = new StringBuilder();
 
         // Q מוגדר לפי הכמות המקסימלית האפשרית במכולה (למשל 10 ביטים לכל סוג)
-        int Q = 7;
 
         for (CargoType type : allTypes) {
             // 1. בניית ה-Type Domain: האם הסוג נטען לפחות פעם אחת?
@@ -60,7 +60,7 @@ public class PheromoneManager {
         } else {
             // צור node חדש עם ערך ברירת מחדל
             PheromoneNode newNode = new PheromoneNode(
-                    cargoId, 0, 0, 0, 0, 0, 0, 0, 1.0, 0, 1.0
+                    cargoId, 0, 0, 0, 0, 0, 0, 0, 1.0, 0,  TAU0
             );
             nodes.add(newNode);
         }
@@ -69,13 +69,8 @@ public class PheromoneManager {
         for (List<PheromoneNode> nodes : pheromoneTree.values()) {
             for (PheromoneNode node : nodes) {
                 // ✅ נדף מ-KOL NOD
-                node.setConcentration(
-                        (1 - RHO) * node.getConcentration()
-                );
-                // בחזרה לכ-1.0 לאט לאט
-                if (node.getConcentration() < 1e-6) {
-                    node.setConcentration(1e-6);
-                }
+               node.setConcentration((1 - RHO) * node.getConcentration() + RHO * TAU0);
+
             }
         }
     }
@@ -88,16 +83,13 @@ public class PheromoneManager {
                 .computeIfAbsent(stateKey, k -> new ArrayList<>());
 
         PheromoneNode node = nodes.stream()
-                .filter(n -> n.getCargoId() == cargoId)
+                .filter(n -> n.getCargoId() == cargoId && n.getD() == direction)
                 .findFirst()
                 .orElse(null);
 
         if (node != null) {
             // ✅ עדכון כלל ACO: τ = (1 - ρ) × τ_old + Δτ
-            double decayedOld = node.getConcentration() *
-                    Math.pow(1 - RHO, ta - node.getTa());
-
-            node.setConcentration(decayedOld + delta);
+            node.setConcentration(node.getConcentration() +  delta);
             node.setTa(ta);
 
             // שמור מטא-מידע
@@ -109,9 +101,7 @@ public class PheromoneManager {
         } else {
             // צור node חדש
             PheromoneNode newNode = new PheromoneNode(
-                    cargoId, direction, x, y, z, x, y, z,
-                    currentVR, ta, delta
-            );
+                    cargoId, direction, x, y, z, x, y, z, currentVR, ta, TAU0+ delta);
             nodes.add(newNode);
         }
 
@@ -119,23 +109,17 @@ public class PheromoneManager {
     }
 
     // ✅ קריאה של פרומון (עם decay)
-    public double getPheromone(String stateKey, int cargoId ) {
+    public double getPheromone(String stateKey, int cargoId , int direction) {
         List<PheromoneNode> nodes = pheromoneTree.get(stateKey);
 
         if (nodes != null) {
-            PheromoneNode node = nodes.stream()
-                    .filter(n -> n.getCargoId() == cargoId)
-                    .findFirst()
-                    .orElse(null);
-
-            if (node != null) {
-                // ✅ הפעל DECAY בעת קריאה
-
-
-                return node.getConcentration();
+            for (PheromoneNode node : nodes) {
+                if (node.getCargoId() == cargoId && node.getD() == direction) {
+                    return node.getConcentration();
+                }
             }
         }
-        return 1.0; // ערך ראשוני
+        return TAU0; // ערך ראשוני
     }
     public double getAlpha() { return ALPHA; }
     public double getBeta() { return BETA; }

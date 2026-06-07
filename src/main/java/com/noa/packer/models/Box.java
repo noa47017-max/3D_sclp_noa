@@ -6,7 +6,7 @@ import java.util.List;
 public class Box {
 
     private ObjectId    id;
-    private ObjectId    userId;
+    private ObjectId    containerId;;
     private double      l;
     private double      w;
     private double      h;
@@ -15,9 +15,9 @@ public class Box {
 
     public Box() {}
 
-    public Box(ObjectId userId, double l, double w, double h,
+    public Box(ObjectId containerId, double l, double w, double h,
                int quantity, List<Integer> allowedOrientations) {
-        this.userId              = userId;
+        this.containerId            = containerId;
         this.l                   = l;
         this.w                   = w;
         this.h                   = h;
@@ -28,8 +28,8 @@ public class Box {
     // Getters & Setters
     public ObjectId      getId()                              { return id; }
     public void          setId(ObjectId id)                   { this.id = id; }
-    public ObjectId      getUserId()                          { return userId; }
-    public void          setUserId(ObjectId v)                { this.userId = v; }
+    public ObjectId      getcontainerId()                          { return containerId; }
+    public void          setcontainerId(ObjectId v)                { this.containerId = v; }
     public double        getL()                               { return l; }
     public void          setL(double v)                       { this.l = v; }
     public double        getW()                               { return w; }

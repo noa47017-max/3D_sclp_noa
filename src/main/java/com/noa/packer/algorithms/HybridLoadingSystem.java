@@ -53,8 +53,8 @@ public LoadingChain startLoadingProcess(Container container, List<CargoType> car
             if (chain == null) continue;
 
             double weight = chain.getVUR() / totalVUR; // משקל יחסי
-            double deltaBase = q * weight;             // delta פרמטרי
-
+            double deltaBase = (weight)*7;             // delta פרמטרי
+            // delta פרמטרי
             for (LoadingChain.PlacedBoxInfo step : chain.getSteps()) {
                 pheromoneManager.updateGlobalPheromone(
                         step.stateKey,
@@ -79,6 +79,7 @@ public LoadingChain startLoadingProcess(Container container, List<CargoType> car
             }
         }
     }
+    Global.MIN_DIM = Double.MAX_VALUE;
 
     outputResults(bestGlobalSolution);
     return bestGlobalSolution;
@@ -136,15 +137,18 @@ private LoadingChain executeAntLoading(Container container, List<CargoType> carg
         CargoType selected = null;
         Orientation bestOri = null;
 
-        // בתוך אותה שכבה — שילוב גרידי ו‑ASM
-        double pTau = Math.exp(-Math.pow(((double) tau / Global.M) * 3.0, 2) / 2.0);
+        // Equation 12: P(τ) = שטח ה-Normal Distribution מ-τ עד M, מנורמל ל-[0,1]
+        // בתחילה (τ≈0): P≈1 → סיכוי גבוה ל-GSM  |  בסוף (τ≈M): P≈0 → ASM שולט
+        double x = ((double) tau / Global.M) * 3.0;
+        double pTau = 2.0 * (1.0 - normalCDF(x));
         boolean useGreedy = new Random().nextDouble() <= pTau;
-        if (useGreedy)
-        {
-            GSMStrategy.Pair<CargoType, Orientation> gsmChoice =gsm.selectCargo(currentSpace, cargoTypes,movedToNewLayer,pheromoneManager,chain.getSteps());
-            if (gsmChoice != null) {
-                selected = gsmChoice.first;
-                bestOri = gsmChoice.second;
+
+            GSMStrategy.Pair<CargoType, Orientation> Choice =useGreedy?
+                    gsm.selectCargo(currentSpace, cargoTypes,movedToNewLayer,pheromoneManager,chain.getSteps()):
+                    asm.selectCargo(currentSpace, cargoTypes, stateKey, tau);
+            if (Choice != null) {
+                selected = Choice.first;
+                bestOri = Choice.second;
             } else {
                 if (movedToNewLayer) {
                     // כשלנו על VI עצמו — אין מה לעשות בחלל זה
@@ -154,33 +158,8 @@ private LoadingChain executeAntLoading(Container container, List<CargoType> carg
                 }
                 continue; // טיפול במקרה של חוסר מועמד
             }
-        }else {
-            selected =asm.selectCargo(currentSpace, cargoTypes, stateKey, tau);
-            if (selected == null) {
-                // אין קופסה מתאימה לחלל זה — נשמר את החלל ברשימת remaining ונמשיך
-                if (movedToNewLayer) {
-                    VI = new Space(0, 0, 0, 0, 0, 0);
-                } else {
-                    VR.add(currentSpace);
-                }
-                continue;
-            }
-            bestOri = new OrientationOptimizer().getBestOrientation(currentSpace, selected);
-
-        }
 
 
-
-
-// ← אותו טיפול גם ב-bestOri == null:
-            if (bestOri == null) {
-                if (movedToNewLayer) {
-                    VI = new Space(0, 0, 0, 0, 0, 0);
-                } else {
-                    VR.add(currentSpace);
-                }
-                continue;
-            }
 
         // 8. רישום ההנחה והעדכון של הכמות
         chain.addStep(selected, bestOri, currentSpace, stateKey);
@@ -223,6 +202,17 @@ private LoadingChain executeAntLoading(Container container, List<CargoType> carg
                     nextIterationSpaces.add(s);
                 }
             }
+            List<Space> updatedVR = new ArrayList<>();
+            for (Space s : VR) {
+                if (isIntersecting(s, currentSpace, bestOri)) {
+                    // אם הארגז החדש חותך חלל ב-VR, נפצל אותו כדי שיישאר נקי
+                    updatedVR.addAll(splitSpaceAroundBox(s, currentSpace, bestOri));
+                } else {
+                    updatedVR.add(s);
+                }
+            }
+            // ניקוי אופטימיזציה קל ל-VR כדי למנוע ריבוי חללים קטנים מדי
+            VR = spaceManager.cleanAndOptimizeSpaces(updatedVR);
         }
         // 11. מיזוג חללים שנוצרו (רק על החללים שנוצרו כרגע / VR המורחבים)
         // 12. ניקוי ואופטימיזציה (הסרת חללים קטנים / מוכלים)
@@ -236,20 +226,24 @@ private LoadingChain executeAntLoading(Container container, List<CargoType> carg
 
         // ✅ זה הקוד שצריך להבין
 private List<Space> smartSortSpaces(List<Space> spaces, double currentLayerX) {
-
+     double eps = 1e-4;
     spaces.sort((a, b) -> {
 
         // 2. מיון לפי X — שכבות (קטן → גדול)
-        int layerComp = Double.compare(a.x, b.x);
-        if (layerComp != 0) return layerComp;
-
-        // 3. מיון לפי Z — גובה (מאמר: Load bottom → top)
-        int zComp = Double.compare(a.z, b.z);
-        if (zComp != 0) return zComp;
-
-        // 4. מיון לפי Y — שמאל → ימין (מאמר: Fill left → right)
-        int yComp = Double.compare(a.y, b.y);
-        if (yComp != 0) return yComp;
+  // 1. מיון לפי X (עומק/שכבות) — קטן ← גדול
+        
+        // 3. מיון לפי Y (רוחב) — Fill left → right
+        if (Math.abs(a.x - b.x) > eps) {
+            return Double.compare(a.x, b.x);
+        }
+        // 2. מיון לפי Z (גובה) — Load bottom → top
+        
+        if (Math.abs(a.y - b.y) > eps) {
+            return Double.compare(a.y, b.y);
+        }
+       if (Math.abs(a.z - b.z) > eps) {
+            return Double.compare(a.z, b.z);
+        }
 
 
         // 5. עדיפות לשטח בסיס גדול יותר (L×W) — מאמר: maximize base area
@@ -432,8 +426,8 @@ private List<Space> smartSortSpaces(List<Space> spaces, double currentLayerX) {
                                 sx1,
                                 sy1,
                                 bz2,
-                                s.L,
-                                s.W,
+                                s.L -(bx2-sx1),
+                                s.W -(by2-sy1),
                                 sz2 - bz2
                         )
                 );
@@ -441,6 +435,22 @@ private List<Space> smartSortSpaces(List<Space> spaces, double currentLayerX) {
 
             return result;
         }
+    // Equation 12: CDF של התפלגות נורמלית סטנדרטית
+    private double normalCDF(double x) {
+        return 0.5 * (1.0 + erf(x / Math.sqrt(2.0)));
+    }
+
+    // קירוב של erf (שגיאה מקסימלית: 1.5×10⁻⁷) — Abramowitz & Stegun
+    private double erf(double x) {
+        double sign = x >= 0 ? 1.0 : -1.0;
+        x = Math.abs(x);
+        double t = 1.0 / (1.0 + 0.3275911 * x);
+        double y = 1.0 - (((((1.061405429 * t - 1.453152027) * t)
+                + 1.421413741) * t - 0.284496736) * t + 0.254829592)
+                * t * Math.exp(-x * x);
+        return sign * y;
+    }
+
     private List<CargoType> deepCopyCargoes(List<CargoType> original) {
         List<CargoType> copy = new ArrayList<>();
         for (CargoType ct : original) copy.add(new CargoType(ct));

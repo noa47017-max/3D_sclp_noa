@@ -26,7 +26,7 @@ public class BoxRepository {
     // ── המרה: Box → Document ─────────────────────
     private Document boxToDocument(Box b) {
         return new Document()
-            .append("userId",              b.getUserId())
+            .append("containerId",              b.getcontainerId())
             .append("l",                   b.getL())
             .append("w",                   b.getW())
             .append("h",                   b.getH())
@@ -38,7 +38,7 @@ public class BoxRepository {
     private Box documentToBox(Document doc) {
         Box b = new Box();
         b.setId(doc.getObjectId("_id"));
-        b.setUserId(doc.getObjectId("userId"));
+        b.setcontainerId(doc.getObjectId("containerId"));
         b.setL(doc.getDouble("l"));
         b.setW(doc.getDouble("w"));
         b.setH(doc.getDouble("h"));

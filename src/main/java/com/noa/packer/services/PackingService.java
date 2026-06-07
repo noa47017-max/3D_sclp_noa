@@ -2,6 +2,7 @@ package com.noa.packer.services;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,13 +35,20 @@ public class PackingService {
     }
     Container container = containerRepository.getById(chain.getContainerID());
     PackingResult result = new PackingResult(
-    userId,
     chain.getContainerID(),
     container.getVolume(),        // containerVolume
     chain.getTotalCargoVolume(),  // totalCargoVolume
     placements
-);
+    );
+   
 
     return packingResultRepository.save(result);
 }
+
+ /**
+     * מחזיר את כל הסידורים של משתמש מסוים, מהחדש לישן.
+     */
+    public List<PackingResult> getHistory(ObjectId userId) {
+        return packingResultRepository.getByUserId(userId);
+    }
 }
