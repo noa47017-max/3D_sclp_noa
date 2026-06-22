@@ -75,27 +75,39 @@ public Orientation getBestOrientation7(Space space, CargoType cargo, Container c
     }
     return best;
 }
-    public Orientation getBestOrientation(Space space, CargoType cargo) {
-        List<Orientation> possible = cargo.getPossibleOrientations();
+//    public Orientation getBestOrientation(Space space, CargoType cargo) {
+//        List<Orientation> possible = cargo.getPossibleOrientations();
+//        Orientation best = null;
+//        double minWaste = Double.MAX_VALUE;
+//
+//        for (Orientation ori : possible) {
+//            if (ori.l <= space.L + 1e-9 && ori.w <= space.W + 1e-9 && ori.h <= space.H + 1e-9) {
+//                // ✅ משוואה 8: חישוב שארית בשלוש מימדים
+//                double remainder_L = space.L - ori.l;
+//                double remainder_W = space.W - ori.w;
+//                double remainder_H = space.H - ori.h;
+//
+//                double waste = (remainder_L * space.W) +
+//                        (remainder_W * space.H) +
+//                        (remainder_H * space.L);
+//
+//                if (waste < minWaste) {
+//                    minWaste = waste;
+//                    best = ori;
+//                }
+//            }
+//        }
+//        return best;
+//    }
+    public Orientation getBestOrientation(Space s, CargoType cargo) {
         Orientation best = null;
         double minWaste = Double.MAX_VALUE;
-
-        for (Orientation ori : possible) {
-            if (ori.l <= space.L + 1e-9 && ori.w <= space.W + 1e-9 && ori.h <= space.H + 1e-9) {
-                // ✅ משוואה 8: חישוב שארית בשלוש מימדים
-                double remainder_L = space.L - ori.l;
-                double remainder_W = space.W - ori.w;
-                double remainder_H = space.H - ori.h;
-
-                double waste = (remainder_L * space.W) +
-                        (remainder_W * space.H) +
-                        (remainder_H * space.L);
-
-                if (waste < minWaste) {
-                    minWaste = waste;
-                    best = ori;
-                }
-            }
+        for (Orientation o : cargo.getPossibleOrientations()) {
+            if (o.l > s.L + 1e-9 || o.w > s.W + 1e-9 || o.h > s.H + 1e-9) continue;
+            double wasteW = (s.W % o.w) * o.h;   // eq 8
+            double wasteH = (s.H % o.h) * o.w;
+            double waste  = wasteW + wasteH;
+            if (waste < minWaste) { minWaste = waste; best = o; }
         }
         return best;
     }

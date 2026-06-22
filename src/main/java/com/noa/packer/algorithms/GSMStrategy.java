@@ -27,27 +27,34 @@ public class GSMStrategy {
     }
 
     private static final double EPS = 1e-9;
+    final OrientationOptimizer orientationOptimizer = new OrientationOptimizer(); // שדה במחלקה
 
     private static final double MIN_VOLUME_THRESHOLD = 1e-6;
 // אם אין לך ערך גלובלי, קבעי את maxCargoVolume לפי המקרה (או חשבי דינמית)
 
     private static final double maxCargoVolume = 1000.0; //
-//    public CargoType selectCargo(Space currentSpace, List<CargoType> availableCargoes) {
-//        CargoType bestCargo = null;
-//        double maxVolume = -1.0;
-//
-//        for (CargoType cargo : availableCargoes) {
-//            // בדיקה אם הארגז בכלל יכול להיכנס למרחב הנוכחי (לפחות באחד מ-6 כיוונים)
-//            if (cargo.quantity>0 && cargo.canFit(currentSpace)) {
-//                // כלל חמדן: בחירת הנפח הגדול ביותר [4]
-//                if (cargo.getVolume() > maxVolume) {
-//                    maxVolume = cargo.getVolume();
-//                    bestCargo = cargo;
-//                }
-//            }
-//        }
-//        return bestCargo;
-//    }
+    public Pair<CargoType, Orientation> selectCargo1( Space currentSpace,
+                                                     List<CargoType> availableCargoes,
+                                                     PheromoneManager pm,
+                                                     List<LoadingChain.PlacedBoxInfo> placed) {
+        CargoType bestCargo = null;
+        double maxVolume = -1.0;
+
+        for (CargoType cargo : availableCargoes) {
+            // בדיקה אם הארגז בכלל יכול להיכנס למרחב הנוכחי (לפחות באחד מ-6 כיוונים)
+            if (cargo.quantity>0 && cargo.canFit(currentSpace)) {
+                // כלל חמדן: בחירת הנפח הגדול ביותר [4]
+                if (cargo.getVolume() > maxVolume) {
+                    maxVolume = cargo.getVolume();
+                    bestCargo = cargo;
+                }
+            }
+        }
+        Orientation bestOri = orientationOptimizer.getBestOrientation(currentSpace, bestCargo);
+        String stateKey = currentCargoState(availableCargoes, pm);
+        pm.depositAndEvaporate(stateKey, bestCargo.id, bestOri.id);
+        return Pair.of(bestCargo, bestOri);
+    }
 private String currentCargoState(List<CargoType> allTypes, PheromoneManager pm) {
     // פשוט קורא למנהל הפרומונים כדי לייצר את מילת המצב
     return pm.generateStateWord(allTypes);
@@ -59,7 +66,7 @@ private String currentCargoState(List<CargoType> allTypes, PheromoneManager pm) 
 // -----------------------------
     public Pair<CargoType, Orientation> selectCargo(
             Space currentSpace,
-            List<CargoType> availableCargoes, boolean isNewLayer,
+            List<CargoType> availableCargoes,
             PheromoneManager pm,
             List<LoadingChain.PlacedBoxInfo> placed
             ) {
@@ -86,7 +93,6 @@ private String currentCargoState(List<CargoType> allTypes, PheromoneManager pm) 
             // בתוך אותה שכבה: דירוג לפי localFillScore + נפח (נמוך = טוב)
             double wArea = 0.6, wVol = 0.4;
             double bestScore = Double.NEGATIVE_INFINITY;;
-            final OrientationOptimizer orientationOptimizer = new OrientationOptimizer(); // שדה במחלקה
 
             for (CargoType c : availableCargoes) {
                 if (c.quantity <= 0) continue;
@@ -110,49 +116,38 @@ private String currentCargoState(List<CargoType> allTypes, PheromoneManager pm) 
 
         // עדכון פרומון מקומי מיד אחרי בחירה (GSM תורם ל‑ASM)
         String stateKey = currentCargoState(availableCargoes, pm);
-//        pm.applyLocalEvaporation(stateKey, bestCargo.id);
-//        pm.depositLocalPheromone(stateKey, bestCargo.id, bestOri,
-//                currentSpace.x, currentSpace.y, currentSpace.z, localDeposit);
+        pm.depositAndEvaporate(stateKey, bestCargo.id, bestOri.id);
+
 
         return Pair.of(bestCargo, bestOri);
     }
-    private double evaluate(Space s, CargoType c, Orientation o,List<LoadingChain.PlacedBoxInfo> placed) {
+    private double evaluate(Space s, CargoType c, Orientation o,
+                            List<LoadingChain.PlacedBoxInfo> placed) {
 
-        // 1. ניצול נפח
-        double U = c.getVolume() / s.getVolume();
+        double U = c.getVolume() / s.getVolume();                            // 1. ניצול נפח
+        double D = 1 - (abs(s.L - o.l) + abs(s.W - o.w) + abs(s.H - o.h))  // 2. התאמה גיאומטרית
+                / (s.L + s.W + s.H);
+        double layer = 1 - abs(o.h - s.H) / s.H;                            // 3. התאמת שכבה
+        double contact = estimateContact(s, o, placed);                      // 4. מגע
 
-        // 2. התאמת צלעות (fit גיאומטרי)
-        double D =
-                1 - (
-                        abs(s.L - o.l) +
-                                abs(s.W - o.w) +
-                                abs(s.H - o.h)
-                ) / (s.L + s.W + s.H);
+        // ===== חדש: פנליטי ריכוז =====
+        // אם כבר השתמשנו ביותר מ-60% מהכמות של סוג זה, פנליטי
+        // זה מעודד את האלגוריתם לשמור ארגזים גדולים לשכבות מאוחרות
 
-        // 3. התאמה לשכבה (גובה)
-        double layer = 1 - abs(o.h - s.H) / s.H;
 
-        // 4. Contact Area (קירוב פשוט ויציב)
-        double contact = estimateContact(s, o,placed );
+        // פנליטי פרגמנטציה (כבר קיים)
         double fragmentationPenalty = 0;
-
         double remL = s.L % o.l;
         double remW = s.W % o.w;
         double remH = s.H % o.h;
+        if (remL > 1 && remL < Global.MIN_DIM) fragmentationPenalty += 0.03;
+        if (remW > 1 && remW < Global.MIN_DIM) fragmentationPenalty += 0.03;
+        if (remH > 1 && remH < Global.MIN_DIM) fragmentationPenalty += 0.03;
 
-        if (remL > 1 && remL < Global.MIN_DIM)
-            fragmentationPenalty += 0.03;
-
-        if (remW > 1 && remW < Global.MIN_DIM)
-            fragmentationPenalty += 0.03;
-
-        if (remH > 1 && remH < Global.MIN_DIM)
-            fragmentationPenalty += 0.03;
-        // 5. שילוב סופי
         return 0.40 * U +
                 0.30 * contact +
                 0.20 * D +
-                0.10 * layer - fragmentationPenalty;
+                0.10 * layer - fragmentationPenalty ;
     }
     private double estimateContact(
             Space s,

@@ -100,7 +100,7 @@ public class ASMStrategy {
         }
     }
 
-    public GSMStrategy.Pair<CargoType, Orientation> selectCargo(Space space, List<CargoType> cargoes, String stateKey, int currentIteration) {
+    public GSMStrategy.Pair<CargoType, Orientation> selectCargo6(Space space, List<CargoType> cargoes, String stateKey, int currentIteration) {
         Map<GSMStrategy.Pair<CargoType, Orientation>, Double> weights = new HashMap<>();
         double totalWeight = 0;
 
@@ -228,6 +228,39 @@ public class ASMStrategy {
         // כאן אתה משתמש ב-rouletteWheelSelection שכבר יש לך בקוד
 //        return rouletteWheelSelection(weights, totalWeight);
 //    }
+ public GSMStrategy.Pair<CargoType, Orientation> selectCargo(Space space, List<CargoType> cargoes, String stateKey) {
+            Map<GSMStrategy.Pair<CargoType, Orientation>, Double> weights = new HashMap<>();
+            double totalWeight = 0;
+
+            for (CargoType cargo : cargoes) {
+                // בדיקה בסיסית: האם נשאר מהארגז והאם הוא נכנס פיזית בחלל
+                if (cargo.quantity > 0 && cargo.canFit(space)) {
+                    for (Orientation ori : cargo.getPossibleOrientations()) {
+                        if (ori.l > space.L || ori.w > space.W || ori.h > space.H) continue;
+
+                        // ===== תיקון באג 2: פרומון בלבד, בלי visibility =====
+                        double pheromone = manager.getPheromone(stateKey, cargo.id, ori.id);
+                        if (pheromone <= 0) pheromone = 1e-6;
+
+                        double weight = Math.pow(pheromone, manager.getAlpha());
+                        // אין visibility! אין BETA!
+
+                        weights.put(new GSMStrategy.Pair<>(cargo, ori), weight);
+                        totalWeight += weight;
+                    }
+                }
+            }
+
+            // בחירה מבוססת הסתברות מתוך כל האופציות שנמצאו
+     GSMStrategy.Pair<CargoType, Orientation> result = rouletteWheelSelection(weights, totalWeight);
+
+     // ===== תיקון באג 1: ASM גם משאיר ריח! =====
+     if (result != null) {
+         manager.depositAndEvaporate(stateKey, result.first.id, result.second.id);
+     }
+
+     return result;        }
+
     //פונקציה לבחירה הסתברותית על פי משקלים
     private GSMStrategy.Pair<CargoType, Orientation> rouletteWheelSelection(Map<GSMStrategy.Pair<CargoType, Orientation>, Double> weights, double totalWeight) {
         // אין בכלל מועמדים

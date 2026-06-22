@@ -10,12 +10,12 @@ public class PheromoneManager {
     // פרמטרים לפי Table 2 במאמר [3]
     private final double ALPHA = 1.0;
     private final double BETA = 3.0;
-    private final double RHO = 0.3; // מקדם התנדפות קבוע
+    private final double RHO = 0.7; // מקדם התנדפות קבוע
     private final double RHO_LOCAL = 0.1;  // Local evaporation
     int Q = 7;
-    private final double TAU0 = 1.0;
+    private final double TAU0 = 0.1;
     private static final int MAX_TREE_SIZE = 50_000;
-
+    private final double DELTA_LOCAL = 0.1;
     public PheromoneManager() {
         this.pheromoneTree = new TreeMap<>();
     }
@@ -43,24 +43,23 @@ public class PheromoneManager {
 
 
     // ✅ LOCAL - בזמן הטעינה
-    public void applyLocalEvaporation(String stateKey, int cargoId) {
+    public void applyLocalEvaporation(String stateKey, int cargoId, int direction) {
         List<PheromoneNode> nodes = pheromoneTree
                 .computeIfAbsent(stateKey, k -> new ArrayList<>());
 
         PheromoneNode node = nodes.stream()
-                .filter(n -> n.getCargoId() == cargoId)
+                .filter(n -> n.getCargoId() == cargoId&& n.getD() == direction)
                 .findFirst()
                 .orElse(null);
 
         if (node != null) {
             // τ = (1 - ρ_local) × τ + ρ_local × τ_0
-            node.setConcentration(
-                   node.getConcentration() + RHO_LOCAL * 1.0
-            );
+            node.setConcentration((1 - RHO_LOCAL) * node.getConcentration() + RHO_LOCAL * TAU0);
+
         } else {
             // צור node חדש עם ערך ברירת מחדל
             PheromoneNode newNode = new PheromoneNode(
-                    cargoId, 0, 0, 0, 0, 0, 0, 0, 1.0, 0,  TAU0
+                    cargoId, direction, 0, 0, 0, 0, 0, 0, 0, 0,  TAU0
             );
             nodes.add(newNode);
         }
@@ -137,8 +136,7 @@ public class PheromoneManager {
             // עדכון מקומי: אנחנו מחלישים את הפרומון בנתיב הזה כדי שיהיה פחות אטרקטיבי
             // לנמלה הבאה, וזה מאלץ אותה לחפש נתיבים חדשים (Exploration)
             double current = node.getConcentration();
-            node.setConcentration(current * (1 - RHO_LOCAL));
-        }
+            node.setConcentration(current * (1 - RHO_LOCAL) + RHO_LOCAL * TAU0);        }
     }
     /**
      * עדכון גלובלי - מחזק את הפרומונים לאורך המסלול של הפתרון הכי טוב.
@@ -195,6 +193,43 @@ public class PheromoneManager {
 //    }
 //     }
 //     }
+    /**
+     * depositAndEvaporate - עדכון מקומי אחרי כל הנחת ארגז
+     *
+     * לפי המאמר (Section 4.3 Step 4 + Section 4.4 Step 5):
+     * 1. deposit: הנמלה משאירה ריח → τ = τ + Δτ_local
+     * 2. evaporate: הריח נחלש קצת → τ = (1-ρ_local) × τ + ρ_local × τ₀
+     *
+     * התוצאה: דרכים שנמלים עברו בהן מקבלות פרומון גבוה יותר מ-TAU0
+     * כך שהנמלה הבאה רואה אילו בחירות כבר נוסו
+     */
+    public void depositAndEvaporate(String stateKey, int cargoId, int direction) {
+        List<PheromoneNode> nodes = pheromoneTree
+                .computeIfAbsent(stateKey, k -> new ArrayList<>());
+
+        PheromoneNode node = nodes.stream()
+                .filter(n -> n.getCargoId() == cargoId && n.getD() == direction)
+                .findFirst()
+                .orElse(null);
+
+        if (node != null) {
+            // שלב 1: deposit — הנמלה משאירה ריח
+            double afterDeposit = node.getConcentration() + DELTA_LOCAL;
+
+            // שלב 2: evaporate — הריח נחלש קצת
+            // כדי שהנמלה הבאה לא תלך בעיוורון אחרי הקודמת
+
+            node.setConcentration(afterDeposit);
+        } else {
+            // node חדש: מתחיל עם TAU0 + deposit
+            // כך שהוא גבוה יותר מנתיבים שלא נוסו (TAU0)
+            double initialConcentration = TAU0 + DELTA_LOCAL;
+
+            PheromoneNode newNode = new PheromoneNode(
+                    cargoId, direction, 0, 0, 0, 0, 0, 0, 0, 0, initialConcentration);
+            nodes.add(newNode);
+        }
+    }
     public void applyGlobalUpdate(LoadingChain bestSolution, double delta) {
         if (bestSolution == null || bestSolution.getSteps() == null) return;
 
@@ -219,4 +254,5 @@ public class PheromoneManager {
             }
         }
     }
+
 }
