@@ -62,13 +62,6 @@ public class UserRepository {
         System.out.println("✅ User added: " + user.getUsername());
     }
 
-    // 📖 READ – כל המשתמשים
-    public List<User> getAllUsers() {
-        List<User> users = new ArrayList<>();
-        for (Document doc : collection.find())
-            users.add(documentToUser(doc));
-        return users;
-    }
 
     // 🔍 READ – לפי אימייל
     public User getUserByEmail(String email) {
@@ -76,31 +69,7 @@ public class UserRepository {
         return doc != null ? documentToUser(doc) : null;
     }
 
-    // 🔍 READ – לפי ID
-    public User getUserById(ObjectId id) {
-        Document doc = collection.find(eq("_id", id)).first();
-        return doc != null ? documentToUser(doc) : null;
-    }
 
-    // ✏️ UPDATE – עדכון תוכנית מנוי
-    public void updateSubscription(String email, String plan,
-                                   String status, String cycle) {
-        collection.updateOne(
-            eq("email", email),
-            new Document("$set", new Document()
-                .append("subscriptionPlan",   plan)
-                .append("subscriptionStatus", status)
-                .append("billingCycle",       cycle)
-            )
-        );
-        System.out.println("✏️ Subscription updated!");
-    }
-
-    // 🗑️ DELETE
-    public void deleteUser(String email) {
-        collection.deleteOne(eq("email", email));
-        System.out.println("🗑️ User deleted!");
-    }
     // 🔍 חיפוש לפי שם משתמש
 public User getUserByUsername(String username) {
     Document doc = collection.find(eq("username", username)).first();

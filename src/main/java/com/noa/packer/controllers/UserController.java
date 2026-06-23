@@ -1,6 +1,7 @@
 package com.noa.packer.controllers;
 
 import com.noa.packer.models.User;
+import com.noa.packer.repositories.UserRepository;
 import com.noa.packer.security.CustomUserDetails;
 import com.noa.packer.services.UserService;
 import com.noa.packer.security.JwtService;
@@ -15,7 +16,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/users")
 @CrossOrigin(origins = "*")
-public class UserController {
+public class UserController extends UserRepository {
 
     @Autowired
     private UserService userService;
@@ -34,7 +35,7 @@ public class UserController {
         return ResponseEntity.ok(result);
     }
 
-    // 🔐 התחברות מעודכנת עם טוקן
+    //  התחברות מעודכנת עם טוקן
     @PostMapping("/login")
     public ResponseEntity<Map<String, String>> login(@RequestBody Map<String, String> body) {
         Map<String, String> response = new HashMap<>();
@@ -57,14 +58,14 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
-    // 📧 בקשת שחזור סיסמא (משתמש בטוקן פנימי של המערכת לשחזור, לא קשור ל-JWT)
+    //  בקשת שחזור סיסמא (משתמש בטוקן פנימי של המערכת לשחזור, לא קשור ל-JWT)
     @PostMapping("/forgot-password")
     public ResponseEntity<String> forgotPassword(@RequestBody Map<String, String> body) {
         String result = userService.requestPasswordReset(body.get("email"));
         return ResponseEntity.ok(result);
     }
 
-    // 🔒 איפוס סיסמא
+    //  איפוס סיסמא
     @PostMapping("/reset-password")
     public ResponseEntity<String> resetPassword(@RequestBody Map<String, String> body) {
         String result = userService.resetPassword(

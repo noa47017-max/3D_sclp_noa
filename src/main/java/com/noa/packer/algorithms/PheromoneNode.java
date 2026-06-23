@@ -5,30 +5,38 @@ public class PheromoneNode {
     double[] leftBackBottom; // xB, yB, zB
     double xT, yT, zT;
     // קואורדינטות פינה עליונה (אחרי התאמת תנוחה)
-    double vr;  
+    double vr;
     double concentration;        // נפח שנותר בשכבה (Remaining Space)
-    int ta;
 
-    public PheromoneNode(int cargoId, int d, double xB, double yB, double zB, 
-                            double xT, double yT, double zT, double vr, int ta, double concentration) {
+    public  PheromoneNode(int cargoId, int d, double xB, double yB, double zB,
+                            double xT, double yT, double zT, double vr,  double concentration) {
         this.cargoId = cargoId;
         this.d = d;
         this.leftBackBottom = new double[]{xB, yB, zB};
         this.xT = xT; this.yT = yT; this.zT = zT;
         this.vr = vr;
         this.concentration = concentration;
-        this.ta = ta;
+    }
+    // בנאי ממוקד עבור עדכונים מקומיים - ללא מיקום קשיח
+    public PheromoneNode(int cargoId, int direction, double initialConcentration) {
+        this.cargoId = cargoId;
+        this.d = direction;
+        this.concentration = initialConcentration;
+        // ערכי ברירת מחדל הגיוניים למניעת באגים:
+        this.vr = Double.MAX_VALUE; // ככה כל VR אמיתי שיוכנס בעתיד יהיה קטן ממנו ויעקוף אותו
+        this.leftBackBottom = new double[]{-1.0, -1.0, -1.0}; // מיקום לא חוקי זמני
+        this.xT = -1.0; this.yT = -1.0; this.zT = -1.0;
+
     }
     public int getCargoId(){return cargoId;}
     public int getD(){return d;}
     public double getVr(){return vr;}
     public double getConcentration(){return concentration;}
-    public void setConcentration(double e) {this.concentration = e;}  
+    public void setConcentration(double e) {this.concentration = e;}
     public void setDirection(int direction) { this.d = direction; }
     public void setLeftBackBottom(double[] es) { this.leftBackBottom = es;}
     public void setVR(double currentVR) {this.vr = currentVR;}
-    public int getTa(){return this.ta;}
-    public void setTa(int ta) { this.ta = ta; }
+
 
 
 }

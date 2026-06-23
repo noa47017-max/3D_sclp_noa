@@ -207,7 +207,7 @@ if (loginBtn) {
                 hideError('login-error');
                 showScreen('menu');
             } else {
-                showError('login-error', result.message || 'שם משתמש או סיסמה שגויים');
+                showError('login-error', result.message || 'אימייל או סיסמה שגויים');
             }
         } catch (err) {
             showError('login-error', 'שגיאה בחיבור לשרת. ודאי שהשרת רץ בפורט 8443');

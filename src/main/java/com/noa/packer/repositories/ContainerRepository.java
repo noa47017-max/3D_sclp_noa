@@ -54,13 +54,7 @@ public class ContainerRepository {
         return newId;
     }
 
-    // 📖 כל המכולות של משתמש
-    public List<Container> getByUserId(ObjectId userId) {
-        List<Container> list = new ArrayList<>();
-        for (Document doc : collection.find(eq("userId", userId)))
-            list.add(documentToContainer(doc));
-        return list;
-    }
+
 
     // 🔍 מכולה לפי ID
     public Container getById(ObjectId id) {
@@ -68,9 +62,4 @@ public class ContainerRepository {
         return doc != null ? documentToContainer(doc) : null;
     }
 
-    // 🗑️ מחיקה
-    public void delete(ObjectId id) {
-        collection.deleteOne(eq("_id", id));
-        System.out.println("🗑️ Container deleted!");
-    }
 }

@@ -60,4 +60,6 @@ public class CargoType {
             this.quantity = this.quantity - 1; // או בקיצור: quantity--;
         }
     }
+    public int getQuantity() { return quantity; }
+    public int getTotalQuantity() { return totalQuantity; }
 }

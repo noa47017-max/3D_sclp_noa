@@ -103,11 +103,12 @@ public Orientation getBestOrientation7(Space space, CargoType cargo, Container c
         Orientation best = null;
         double minWaste = Double.MAX_VALUE;
         for (Orientation o : cargo.getPossibleOrientations()) {
-            if (o.l > s.L + 1e-9 || o.w > s.W + 1e-9 || o.h > s.H + 1e-9) continue;
-            double wasteW = (s.W % o.w) * o.h;   // eq 8
+            if (!(o.l > s.L + Global.EPSILON || o.w > s.W + Global.EPSILON || o.h > s.H + Global.EPSILON)) {
+            double wasteW = (s.W % o.w) * o.h;
             double wasteH = (s.H % o.h) * o.w;
             double waste  = wasteW + wasteH;
             if (waste < minWaste) { minWaste = waste; best = o; }
+            }
         }
         return best;
     }

@@ -1,5 +1,6 @@
 package com.noa.packer.algorithms;
-
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
@@ -12,85 +13,56 @@ public class PheromoneManager {
     private final double BETA = 3.0;
     private final double RHO = 0.7; // מקדם התנדפות קבוע
     private final double RHO_LOCAL = 0.1;  // Local evaporation
-    int Q = 7;
+    int Q = 8;
     private final double TAU0 = 0.1;
     private static final int MAX_TREE_SIZE = 50_000;
-    private final double DELTA_LOCAL = 0.1;
+    private final double DELTA_LOCAL = 0.2;
     public PheromoneManager() {
         this.pheromoneTree = new TreeMap<>();
     }
 
     public String generateStateWord(List<CargoType> allTypes) {
-        StringBuilder typeDomain = new StringBuilder();
+        StringBuilder stateBuilder = new StringBuilder(allTypes.size() * (1 + Q));
         StringBuilder quantityDomain = new StringBuilder();
-
-        // Q מוגדר לפי הכמות המקסימלית האפשרית במכולה (למשל 10 ביטים לכל סוג)
 
         for (CargoType type : allTypes) {
             // 1. בניית ה-Type Domain: האם הסוג נטען לפחות פעם אחת?
-            int loadedCount = type.totalQuantity - type.quantity;
-            typeDomain.append(loadedCount > 0 ? "1" : "0");
-
+            int loadedCount = type.getTotalQuantity() - type.getQuantity();
+            stateBuilder.append(loadedCount > 0 ? "1" : "0");
             // 2. בניית ה-Quantity Domain: הכמות המדויקת שנטענה (בבינארי)
             String binQty = Integer.toBinaryString(loadedCount);
-            // Padding ל-Q ביטים כפי שנדרש במשוואה 9
-            while (binQty.length() < Q) binQty = "0" + binQty;
+            // ריפוד אפסים
+            int paddingNeeded = Q - binQty.length();
+            for (int i = 0; i < paddingNeeded; i++) {
+                quantityDomain.append('0');
+            }
             quantityDomain.append(binQty);
         }
-        // שרשור התחומים לפי איור 6
-        return typeDomain.toString() + quantityDomain.toString();
+        // שרשור התחומים
+        return stateBuilder.append(quantityDomain).toString();
     }
 
-
-    // ✅ LOCAL - בזמן הטעינה
-    public void applyLocalEvaporation(String stateKey, int cargoId, int direction) {
-        List<PheromoneNode> nodes = pheromoneTree
-                .computeIfAbsent(stateKey, k -> new ArrayList<>());
-
-        PheromoneNode node = nodes.stream()
-                .filter(n -> n.getCargoId() == cargoId&& n.getD() == direction)
-                .findFirst()
-                .orElse(null);
-
-        if (node != null) {
-            // τ = (1 - ρ_local) × τ + ρ_local × τ_0
-            node.setConcentration((1 - RHO_LOCAL) * node.getConcentration() + RHO_LOCAL * TAU0);
-
-        } else {
-            // צור node חדש עם ערך ברירת מחדל
-            PheromoneNode newNode = new PheromoneNode(
-                    cargoId, direction, 0, 0, 0, 0, 0, 0, 0, 0,  TAU0
-            );
-            nodes.add(newNode);
-        }
-    }
     public void applyGlobalEvaporation() {
         for (List<PheromoneNode> nodes : pheromoneTree.values()) {
             for (PheromoneNode node : nodes) {
-                // ✅ נדף מ-KOL NOD
-               node.setConcentration((1 - RHO) * node.getConcentration() + RHO * TAU0);
-
+                // נידוף
+                double decayed = (1 - RHO) * node.getConcentration();
+                node.setConcentration(Math.max(decayed, TAU0));
             }
         }
     }
-    // ✅ GLOBAL - אחרי איטרציה
+    //  GLOBAL - אחרי איטרציה
     public void updateGlobalPheromone( String stateKey, int cargoId, int direction,
-            double x, double y, double z,
-            double currentVR, double delta, int ta) {
+            double x, double y, double z, double x2, double y2, double z2, double currentVR, double delta) {
 
-        List<PheromoneNode> nodes = pheromoneTree
-                .computeIfAbsent(stateKey, k -> new ArrayList<>());
-
+        List<PheromoneNode> nodes = pheromoneTree.computeIfAbsent(stateKey, k -> new ArrayList<>());
         PheromoneNode node = nodes.stream()
                 .filter(n -> n.getCargoId() == cargoId && n.getD() == direction)
                 .findFirst()
                 .orElse(null);
-
         if (node != null) {
             // ✅ עדכון כלל ACO: τ = (1 - ρ) × τ_old + Δτ
             node.setConcentration(node.getConcentration() +  delta);
-            node.setTa(ta);
-
             // שמור מטא-מידע
             if (currentVR < node.getVr()) {
                 node.setVR(currentVR);
@@ -100,14 +72,11 @@ public class PheromoneManager {
         } else {
             // צור node חדש
             PheromoneNode newNode = new PheromoneNode(
-                    cargoId, direction, x, y, z, x, y, z, currentVR, ta, TAU0+ delta);
+                    cargoId, direction, x, y, z, x2, y2, z2, currentVR, TAU0+ delta);
             nodes.add(newNode);
         }
-
-
     }
-
-    // ✅ קריאה של פרומון (עם decay)
+    //  קריאה של פרומון (עם decay)
     public double getPheromone(String stateKey, int cargoId , int direction) {
         List<PheromoneNode> nodes = pheromoneTree.get(stateKey);
 
@@ -122,111 +91,24 @@ public class PheromoneManager {
     }
     public double getAlpha() { return ALPHA; }
     public double getBeta() { return BETA; }
-    // בתוך PheromoneManager.java
-    public void updateLocalPheromone(String stateKey, int cargoId) {
-        List<PheromoneNode> nodes = pheromoneTree.get(stateKey);
-        if (nodes == null) return;
 
-        PheromoneNode node = nodes.stream()
-                .filter(n -> n.getCargoId() == cargoId)
-                .findFirst()
-                .orElse(null);
-
-        if (node != null) {
-            // עדכון מקומי: אנחנו מחלישים את הפרומון בנתיב הזה כדי שיהיה פחות אטרקטיבי
-            // לנמלה הבאה, וזה מאלץ אותה לחפש נתיבים חדשים (Exploration)
-            double current = node.getConcentration();
-            node.setConcentration(current * (1 - RHO_LOCAL) + RHO_LOCAL * TAU0);        }
-    }
-    /**
-     * עדכון גלובלי - מחזק את הפרומונים לאורך המסלול של הפתרון הכי טוב.
-     * @param bestSolution הפתרון הטוב ביותר שנמצא באיטרציה הנוכחית
-     * @param delta כמות הפרומון להוסיף (למשל: Q * VUR)
-     *//**
-     *  * עדכון/הוספת פרומון מקומי מיד אחרי הנחה (GSM/ASM).
-     *  * אם קיים node עבור stateKey+cargoId — מעדכן את הריכוז; אחרת יוצר node חדש.
-     *  */
-
-
-//    public void depositLocalPheromone(String stateKey,
-//     int cargoId,
-//     Orientation ori,
-//     double x, double y, double z,
-//     double amount) {
-//
-//     List<PheromoneNode> nodes = pheromoneTree.computeIfAbsent(stateKey, k -> new ArrayList<>());
-//
-//       // חפש node קיים שמתאים לסוג המטען + אותה אוריינטציה + מיקום מעוגל
-//     PheromoneNode node = nodes.stream()
-//                             .filter(n -> n.getCargoId() == cargoId
-//                 && ori.toShortString().equals(n.getOri()) // אם שמרת שדה ori במבנה
-//                 && Math.round(n.getLeftBackBottom()[0]) == Math.round(x)
-//                 && Math.round(n.getLeftBackBottom()[1]) == Math.round(y)
-//                 && Math.round(n.getLeftBackBottom()[2]) == Math.round(z))
-//                             .findFirst()
-//                .orElse(null);
-//
-//     if (node != null) {
-//              // עדכון ריכוז מקומי: מוסיפים כמות קטנה (או ממזגים)
-//     double newConc = node.getConcentration() + amount;
-//     node.setConcentration(newConc);
-//              // עדכן מטא-מידע אם צריך (שמור ta/vr אם רלוונטי)
-//     } else {
-//              // צור node חדש עם שדות בסיסיים
-//     *PheromoneNode newNode = new PheromoneNode(
-//                    cargoId,
-//     0,              // direction (אם אין מספר כיוון, אפשר לשים 0 או להמיר ori ל-int)
-//    x, y, z,        // leftBackBottom
-//     x, y, z,        // some other coords placeholders (אם יש שדות אחרים)
-//     1.0,            // vr (initial)
-//    0,              // ta (iteration index) - caller יכול לעדכן מאוחר יותר
-//     amount          // concentration initial
-//                            );
-//          // אם PheromoneNode תומך בשמירת אוריינטציה, הוסיפי:
-//    newNode.setOri(ori.toShortString());
-//     nodes.add(newNode);
-//
-//              // שמירה על גודל עץ סביר (מניעת זליגת זיכרון)
-//    if (nodes.size() > MAX_TREE_SIZE) {
-//                  // אסטרטגיה פשוטה: הסר את הישן ביותר (או לפי מדד)
-//     nodes.remove(0);
-//    }
-//     }
-//     }
-    /**
-     * depositAndEvaporate - עדכון מקומי אחרי כל הנחת ארגז
-     *
-     * לפי המאמר (Section 4.3 Step 4 + Section 4.4 Step 5):
-     * 1. deposit: הנמלה משאירה ריח → τ = τ + Δτ_local
-     * 2. evaporate: הריח נחלש קצת → τ = (1-ρ_local) × τ + ρ_local × τ₀
-     *
-     * התוצאה: דרכים שנמלים עברו בהן מקבלות פרומון גבוה יותר מ-TAU0
-     * כך שהנמלה הבאה רואה אילו בחירות כבר נוסו
-     */
-    public void depositAndEvaporate(String stateKey, int cargoId, int direction) {
+    public void depositAndEvaporate(String stateKey, int cargoId, Orientation direction, Space space, double currentVR) {
         List<PheromoneNode> nodes = pheromoneTree
                 .computeIfAbsent(stateKey, k -> new ArrayList<>());
-
         PheromoneNode node = nodes.stream()
-                .filter(n -> n.getCargoId() == cargoId && n.getD() == direction)
+                .filter(n -> n.getCargoId() == cargoId && n.getD() == direction.id)
                 .findFirst()
                 .orElse(null);
 
         if (node != null) {
             // שלב 1: deposit — הנמלה משאירה ריח
-            double afterDeposit = node.getConcentration() + DELTA_LOCAL;
-
-            // שלב 2: evaporate — הריח נחלש קצת
-            // כדי שהנמלה הבאה לא תלך בעיוורון אחרי הקודמת
-
-            node.setConcentration(afterDeposit);
+            node.setConcentration(node.getConcentration() + DELTA_LOCAL);
         } else {
             // node חדש: מתחיל עם TAU0 + deposit
-            // כך שהוא גבוה יותר מנתיבים שלא נוסו (TAU0)
             double initialConcentration = TAU0 + DELTA_LOCAL;
-
             PheromoneNode newNode = new PheromoneNode(
-                    cargoId, direction, 0, 0, 0, 0, 0, 0, 0, 0, initialConcentration);
+                    cargoId, direction.id, space.x, space.y, space.z, space.x+direction.l,
+                    space.y+direction.w, space.z+direction.h, currentVR, initialConcentration);
             nodes.add(newNode);
         }
     }

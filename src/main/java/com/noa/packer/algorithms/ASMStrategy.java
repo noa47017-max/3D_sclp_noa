@@ -66,7 +66,7 @@ public class ASMStrategy {
 //         }
 //     }  
 
-//     return bestCargo;
+    //     return bestCargo;
 // }
 //public CargoType selectCargo45(Space space, List<CargoType> cargoes, String stateKey, int currentIteration) {
 //    Map<CargoType, Double> weights = new HashMap<>();
@@ -90,18 +90,9 @@ public class ASMStrategy {
 //    }
 //    return rouletteWheelSelection(weights, totalWeight);
 //}
-    // מחלקת-עזר להחזרת התוצאה המשותפת
-    public static class CargoChoice {
-        public final CargoType cargo;
-        public final Orientation orientation;
-        public final int direction;
-        public CargoChoice(CargoType c, Orientation o, int d) {
-            this.cargo = c; this.orientation = o; this.direction = d;
-        }
-    }
 
-    public GSMStrategy.Pair<CargoType, Orientation> selectCargo6(Space space, List<CargoType> cargoes, String stateKey, int currentIteration) {
-        Map<GSMStrategy.Pair<CargoType, Orientation>, Double> weights = new HashMap<>();
+    public CargoSelection selectCargo6(Space space, List<CargoType> cargoes, String stateKey, int currentIteration) {
+        Map<CargoSelection, Double> weights = new HashMap<>();
         double totalWeight = 0;
 
         for (CargoType cargo : cargoes) {
@@ -126,7 +117,7 @@ public class ASMStrategy {
                 double weight = Math.pow(pheromone, manager.getAlpha()) *
                         Math.pow(visibility, manager.getBeta());
 
-                weights.put(new GSMStrategy.Pair(cargo, ori), weight);
+                weights.put(new CargoSelection(cargo, ori), weight);
                 totalWeight += weight;
             }
         }
@@ -225,58 +216,57 @@ public class ASMStrategy {
 //            }
 //        }
 
-        // כאן אתה משתמש ב-rouletteWheelSelection שכבר יש לך בקוד
+    // כאן אתה משתמש ב-rouletteWheelSelection שכבר יש לך בקוד
 //        return rouletteWheelSelection(weights, totalWeight);
 //    }
- public GSMStrategy.Pair<CargoType, Orientation> selectCargo(Space space, List<CargoType> cargoes, String stateKey) {
-            Map<GSMStrategy.Pair<CargoType, Orientation>, Double> weights = new HashMap<>();
-            double totalWeight = 0;
-
-            for (CargoType cargo : cargoes) {
-                // בדיקה בסיסית: האם נשאר מהארגז והאם הוא נכנס פיזית בחלל
-                if (cargo.quantity > 0 && cargo.canFit(space)) {
-                    for (Orientation ori : cargo.getPossibleOrientations()) {
-                        if (ori.l > space.L || ori.w > space.W || ori.h > space.H) continue;
-
-                        // ===== תיקון באג 2: פרומון בלבד, בלי visibility =====
+    public CargoSelection selectCargo(Space space, List<CargoType> cargoes, String stateKey) {
+        Map<CargoSelection, Double> weights = new HashMap<>();
+        double totalWeight = 0;
+        for (CargoType cargo : cargoes) {
+            // בדיקה בסיסית: האם נשאר מהארגז והאם הוא נכנס פיזית בחלל
+            if (cargo.quantity > 0 && cargo.canFit(space)) {
+                for (Orientation ori : cargo.getPossibleOrientations()) {
+                    if (!(ori.l > space.L || ori.w > space.W || ori.h > space.H)) {
                         double pheromone = manager.getPheromone(stateKey, cargo.id, ori.id);
-                        if (pheromone <= 0) pheromone = 1e-6;
+                        if (pheromone <= 0) pheromone = Global.EPSILON;
+                        double visibility = calculateVisibility(cargo, ori, space);
 
-                        double weight = Math.pow(pheromone, manager.getAlpha());
-                        // אין visibility! אין BETA!
+                        double weight = Math.pow(pheromone, manager.getAlpha())
+                                * Math.pow(visibility, manager.getBeta());
 
-                        weights.put(new GSMStrategy.Pair<>(cargo, ori), weight);
+
+                        weights.put(new CargoSelection(cargo, ori), weight);
                         totalWeight += weight;
                     }
                 }
             }
-
-            // בחירה מבוססת הסתברות מתוך כל האופציות שנמצאו
-     GSMStrategy.Pair<CargoType, Orientation> result = rouletteWheelSelection(weights, totalWeight);
-
-     // ===== תיקון באג 1: ASM גם משאיר ריח! =====
-     if (result != null) {
-         manager.depositAndEvaporate(stateKey, result.first.id, result.second.id);
-     }
-
-     return result;        }
-
+        }
+        // בחירה מבוססת הסתברות מתוך כל האופציות שנמצאו
+        CargoSelection result = rouletteWheelSelection(weights, totalWeight);
+        return result;
+    }
+    private double calculateVisibility(CargoType cargo, Orientation ori, Space space) {
+        // כמה יעיל להציב את הארגז הזה בחלל הזה?
+        double usedVolume = ori.l * ori.w * ori.h;
+        double spaceVolume = space.L * space.W * space.H;
+        return usedVolume / spaceVolume;  // ככל שיותר תפוס, טוב יותר
+    }
     //פונקציה לבחירה הסתברותית על פי משקלים
-    private GSMStrategy.Pair<CargoType, Orientation> rouletteWheelSelection(Map<GSMStrategy.Pair<CargoType, Orientation>, Double> weights, double totalWeight) {
+    private CargoSelection rouletteWheelSelection
+    (Map<CargoSelection, Double> weights, double totalWeight) {
         // אין בכלל מועמדים
         if (weights == null || weights.isEmpty()) {
             return null;
         }
-
-        // יש מועמדים אבל אין משקל הסתברותי - עדיין לא הבנתי
+        // יש מועמדים אבל אין משקל הסתברותי
         if (totalWeight <= 0) {
-            List<GSMStrategy.Pair<CargoType, Orientation>> keys = new ArrayList<>(weights.keySet());
+            List<CargoSelection> keys = new ArrayList<>(weights.keySet());
             return keys.get(random.nextInt(keys.size())); // בטוח: size > 0
         }
 
         double currentSum = 0.0;
         double threshold = java.util.concurrent.ThreadLocalRandom.current().nextDouble() * totalWeight;
-        for (Map.Entry<GSMStrategy.Pair<CargoType, Orientation>, Double> entry : weights.entrySet()) {
+        for (Map.Entry<CargoSelection, Double> entry : weights.entrySet()) {
             currentSum += entry.getValue();
             if (currentSum >= threshold) {
                 return entry.getKey();

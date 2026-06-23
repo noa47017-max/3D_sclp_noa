@@ -100,11 +100,6 @@ public class PackingResultRepository {
         return doc != null ? documentToResult(doc) : null;
     }
 
-    // 🗑️ מחיקת תוצאה
-    public void delete(ObjectId id) {
-        collection.deleteOne(eq("_id", id));
-        System.out.println("🗑️ Packing result deleted!");
-    }
       // 📖 כל התוצאות של משתמש מסוים, מהחדש לישן
     // 📖 כל התוצאות של משתמש מסוים, מהחדש לישן
     public List<PackingResult> getByUserId(ObjectId userId) {

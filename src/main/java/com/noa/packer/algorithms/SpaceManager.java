@@ -3,59 +3,228 @@ package com.noa.packer.algorithms;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * SpaceManager - ניהול חללים נקיים
- *
- * העיקרון: כל חלל ברשימת החללים הזמינים מובטח שלא חופף עם אף ארגז קיים.
- * לכן, כשמניחים ארגז בחלל - בלתי אפשרי שתהיה חפיפה.
- *
- * מבוסס על Section 3.4 + 3.5 מהמאמר (Three-space division + Merging)
- */
 public class SpaceManager {
 
-    // ============================================================
-    //  CORE: עדכון חללים אחרי הנחת ארגז
-    // ============================================================
 
-    /**
-     * עדכון כל החללים הזמינים אחרי הנחת ארגז חדש.
-     *
-     * כל חלל שחופף עם הארגז החדש - נחתך סביבו.
-     * כל חלל שלא חופף - נשאר כמות שהוא.
-     *
-     * תוצאה: רשימת חללים נקיים שמובטח שלא חופפים עם שום ארגז.
-     *
-     * @param allSpaces כל החללים הזמינים (vrQueue + viQueue + legacyQueue)
-     * @param placedBox הארגז שהונח (מיקום + כיוון)
-     * @return רשימת חללים נקיים
-     */
-    public List<Space> updateSpacesAfterPlacement(List<Space> allSpaces, PlacedBox placedBox) {
+    public List<Space> updateSpacesAfterPlacement(List<Space> allSpaces, double xMin, double yMin, double zMin,
+                                                  double xMax, double yMax, double zMax) {
         List<Space> updatedSpaces = new ArrayList<>();
-
         for (Space space : allSpaces) {
-            if (spacesOverlap(space, placedBox)) {
-                // ✅ החלל חופף עם הארגז - חתוך אותו סביב הארגז
-                List<Space> fragments = cutSpaceAroundBox(space, placedBox);
+            if (spacesOverlap(space, xMin, yMin, zMin,
+             xMax, yMax, zMax)) {
+                //  החלל חופף עם הארגז - חתוך אותו סביב הארגז
+                List<Space> fragments = cutSpaceAroundBox(space, xMin,  yMin,  zMin,
+                 xMax, yMax, zMax);
                 updatedSpaces.addAll(fragments);
             } else {
                 // החלל לא חופף - שמור אותו
                 updatedSpaces.add(space);
             }
         }
-
         // נקה חללים קטנים מדי וחללים מכוסים
         updatedSpaces = cleanSpaces(updatedSpaces);
-
         return updatedSpaces;
     }
+    public List<Space> mergeRetryInto(List<Space> base, List<Space> retrySpaces) {
+        List<Space> result = new ArrayList<>(base);
 
+        for (Space retry : retrySpaces) {
+            boolean canMerge = false;
+            for (Space existing : result) {
+                if (canMergeLeftRight(retry, existing)
+                        || canMergeFrontRear(retry, existing)
+                        || canMergeTopBottom(retry, existing)
+                        || tryOverlapMerge(retry, existing) != null) {
+                    canMerge = true;
+                    break;
+                }
+            }
+            if (canMerge) {
+                result.add(retry);
+            }
+            // לא מתמזג → נזרק
+        }
+
+        return mergeSpaces(result);
+    }
+    public List<Space> mergeNewInto(List<Space> existing, List<Space> newSpaces) {
+        List<Space> result = new ArrayList<>(existing);
+
+        for (Space ns : newSpaces) {
+            Space current = ns;
+            boolean mergedSomething = true;
+
+            while (mergedSomething) {
+                mergedSomething = false;
+                for (int i = 0; i < result.size(); i++) {
+                    Space other = result.get(i);
+                    if (canMergeLeftRight(current, other)) {
+                        current = mergeLeftRight(current, other);
+                        result.remove(i);
+                        mergedSomething = true;
+                        break;
+                    } else if (canMergeFrontRear(current, other)) {
+                        current = mergeFrontRear(current, other);
+                        result.remove(i);
+                        mergedSomething = true;
+                        break;
+                    } else if (canMergeTopBottom(current, other)) {
+                        current = mergeTopBottom(current, other);
+                        result.remove(i);
+                        mergedSomething = true;
+                        break;
+                    }
+                }
+            }
+            result.add(current);
+        }
+
+        return cleanSpaces(result);
+    }
+    public List<Space> mergeSpaces(List<Space> spaces) {
+        if (spaces.size() <= 1) return new ArrayList<>(spaces);
+        // שלב 1: מיזוג מדויק כמו קודם (exact match)
+        List<Space> result = exactMerge(spaces);
+        // שלב 2: מיזוג חפיפה — מוסיף חללים חדשים, לא מוחק ישנים
+        List<Space> overlapMerged = new ArrayList<>();
+        for (int i = 0; i < result.size(); i++) {
+            for (int j = i + 1; j < result.size(); j++) {
+                Space merged = tryOverlapMerge(result.get(i), result.get(j));
+                if (merged != null) {
+                    overlapMerged.add(merged);
+                }
+            }
+        }
+        result.addAll(overlapMerged);
+        return cleanSpaces(result);  // cleanSpaces מוריד חללים מכוסים
+    }
+
+    // המיזוג המדויק הקיים — ללא שינוי
+    private List<Space> exactMerge(List<Space> spaces) {
+        List<Space> result = new ArrayList<>(spaces);
+        boolean merged = true;
+        while (merged) {
+            merged = false;
+            List<Space> newResult = new ArrayList<>();
+            boolean[] used = new boolean[result.size()];
+            for (int i = 0; i < result.size(); i++) {
+                if (used[i]) continue;
+                Space current = result.get(i);
+                for (int j = i + 1; j < result.size(); j++) {
+                    if (used[j]) continue;
+                    Space candidate = result.get(j);
+                    if (canMergeLeftRight(current, candidate)) {
+                        current = mergeLeftRight(current, candidate);
+                        used[j] = true;
+                        merged = true;
+                    } else if (canMergeFrontRear(current, candidate)) {
+                        current = mergeFrontRear(current, candidate);
+                        used[j] = true;
+                        merged = true;
+                    } else if (canMergeTopBottom(current, candidate)) {
+                        current = mergeTopBottom(current, candidate);
+                        used[j] = true;
+                        merged = true;
+                    }
+                }
+                newResult.add(current);
+                used[i] = true;
+            }
+            result = newResult;
+        }
+        return result;
+    }
+
+    // מיזוג חפיפה — intersection + שמירת מקוריים
+    private Space tryOverlapMerge(Space s1, Space s2) {
+
+        // ניסיון מיזוג ב-Y (left-right, Eq 5)
+        if (isAdjacentY(s1, s2) && overlapsX(s1, s2) && overlapsZ(s1, s2)) {
+            return mergeAlongY(s1, s2);
+        }
+        // ניסיון מיזוג ב-X (front-rear, Eq 6)
+        if (isAdjacentX(s1, s2) && overlapsY(s1, s2) && overlapsZ(s1, s2)) {
+            return mergeAlongX(s1, s2);
+        }
+        // ניסיון מיזוג ב-Z (top-bottom)
+        if (isAdjacentZ(s1, s2) && overlapsX(s1, s2) && overlapsY(s1, s2)) {
+            return mergeAlongZ(s1, s2);
+        }
+        return null;
+    }
+
+// --- בדיקות חפיפה (overlap, לא exact) ---
+
+    private boolean overlapsX(Space s1, Space s2) {
+        return s1.x < s2.x + s2.L - 1e-9 && s2.x < s1.x + s1.L - 1e-9;
+    }
+    private boolean overlapsY(Space s1, Space s2) {
+        return s1.y < s2.y + s2.W - 1e-9 && s2.y < s1.y + s1.W - 1e-9;
+    }
+    private boolean overlapsZ(Space s1, Space s2) {
+        return s1.z < s2.z + s2.H - 1e-9 && s2.z < s1.z + s1.H - 1e-9;
+    }
+
+// --- בדיקות צמידות (adjacent) ---
+
+    private boolean isAdjacentY(Space s1, Space s2) {
+        return Math.abs((s1.y + s1.W) - s2.y) < 1e-9 ||
+                Math.abs((s2.y + s2.W) - s1.y) < 1e-9;
+    }
+    private boolean isAdjacentX(Space s1, Space s2) {
+        return Math.abs((s1.x + s1.L) - s2.x) < 1e-9 ||
+                Math.abs((s2.x + s2.L) - s1.x) < 1e-9;
+    }
+    private boolean isAdjacentZ(Space s1, Space s2) {
+        return Math.abs((s1.z + s1.H) - s2.z) < 1e-9 ||
+                Math.abs((s2.z + s2.H) - s1.z) < 1e-9;
+    }
+
+// --- מיזוג עם intersection ---
+
+    private Space mergeAlongY(Space s1, Space s2) {
+        // Y = union, X ו-Z = intersection
+        double newX = Math.max(s1.x, s2.x);
+        double newL = Math.min(s1.x + s1.L, s2.x + s2.L) - newX;
+        double newY = Math.min(s1.y, s2.y);
+        double newW = Math.max(s1.y + s1.W, s2.y + s2.W) - newY;
+        double newZ = Math.max(s1.z, s2.z);
+        double newH = Math.min(s1.z + s1.H, s2.z + s2.H) - newZ;
+        if (newL < 1e-6 || newW < 1e-6 || newH < 1e-6) return null;
+        return new Space(newX, newY, newZ, newL, newW, newH);
+    }
+
+    private Space mergeAlongX(Space s1, Space s2) {
+        // X = union, Y ו-Z = intersection
+        double newX = Math.min(s1.x, s2.x);
+        double newL = Math.max(s1.x + s1.L, s2.x + s2.L) - newX;
+        double newY = Math.max(s1.y, s2.y);
+        double newW = Math.min(s1.y + s1.W, s2.y + s2.W) - newY;
+        double newZ = Math.max(s1.z, s2.z);
+        double newH = Math.min(s1.z + s1.H, s2.z + s2.H) - newZ;
+        if (newL < 1e-6 || newW < 1e-6 || newH < 1e-6) return null;
+        return new Space(newX, newY, newZ, newL, newW, newH);
+    }
+
+    private Space mergeAlongZ(Space s1, Space s2) {
+        // Z = union, X ו-Y = intersection
+        double newX = Math.max(s1.x, s2.x);
+        double newL = Math.min(s1.x + s1.L, s2.x + s2.L) - newX;
+        double newY = Math.max(s1.y, s2.y);
+        double newW = Math.min(s1.y + s1.W, s2.y + s2.W) - newY;
+        double newZ = Math.min(s1.z, s2.z);
+        double newH = Math.max(s1.z + s1.H, s2.z + s2.H) - newZ;
+        if (newL < 1e-6 || newW < 1e-6 || newH < 1e-6) return null;
+        return new Space(newX, newY, newZ, newL, newW, newH);
+    }
     /**
      * בדוק אם חלל חופף עם ארגז שהונח
      */
-    private boolean spacesOverlap(Space space, PlacedBox box) {
-        return space.x < box.xMax && space.x + space.L > box.xMin &&
-                space.y < box.yMax && space.y + space.W > box.yMin &&
-                space.z < box.zMax && space.z + space.H > box.zMin;
+    private boolean spacesOverlap(Space space,double xMin, double yMin, double zMin,
+                                  double xMax, double yMax, double zMax) {
+        return space.x < xMax && space.x + space.L > xMin &&
+                space.y < yMax && space.y + space.W > yMin &&
+                space.z < zMax && space.z + space.H > zMin;
     }
 
     /**
@@ -71,7 +240,8 @@ public class SpaceManager {
      *   Below  (Z-)  : מה שנשאר מתחת לארגז
      *   Above  (Z+)  : מה שנשאר מעל לארגז
      */
-    private List<Space> cutSpaceAroundBox(Space space, PlacedBox box) {
+    private List<Space> cutSpaceAroundBox(Space space, double xMin, double yMin, double zMin,
+                                          double xMax, double yMax, double zMax) {
         List<Space> fragments = new ArrayList<>();
 
         double sxMin = space.x;
@@ -82,50 +252,50 @@ public class SpaceManager {
         double szMax = space.z + space.H;
 
         // Left (X-): כל מה שמשמאל לארגז
-        if (box.xMin > sxMin) {
+        if (xMin > sxMin) {
             fragments.add(new Space(
                     sxMin, syMin, szMin,
-                    box.xMin - sxMin, space.W, space.H
+                    xMin - sxMin, space.W, space.H
             ));
         }
 
         // Right (X+): כל מה שמימין לארגז
-        if (box.xMax < sxMax) {
+        if (xMax < sxMax) {
             fragments.add(new Space(
-                    box.xMax, syMin, szMin,
-                    sxMax - box.xMax, space.W, space.H
+                    xMax, syMin, szMin,
+                    sxMax - xMax, space.W, space.H
             ));
         }
 
         // Bottom (Y-): כל מה שמאחור לארגז (בתוך ציר X של הארגז)
-        if (box.yMin > syMin) {
+        if (yMin > syMin) {
             fragments.add(new Space(
                     sxMin, syMin, szMin,
-                    space.L, box.yMin - syMin, space.H
+                    space.L, yMin - syMin, space.H
             ));
         }
 
         // Top (Y+): כל מה שמאמם לארגז
-        if (box.yMax < syMax) {
+        if (yMax < syMax) {
             fragments.add(new Space(
-                    sxMin, box.yMax, szMin,
-                    space.L, syMax - box.yMax, space.H
+                    sxMin, yMax, szMin,
+                    space.L, syMax - yMax, space.H
             ));
         }
 
         // Below (Z-): כל מה שמתחת לארגז
-        if (box.zMin > szMin) {
+        if (zMin > szMin) {
             fragments.add(new Space(
                     sxMin, syMin, szMin,
-                    space.L, space.W, box.zMin - szMin
+                    space.L, space.W, zMin - szMin
             ));
         }
 
         // Above (Z+): כל מה שמעל לארגז
-        if (box.zMax < szMax) {
+        if (zMax < szMax) {
             fragments.add(new Space(
-                    sxMin, syMin, box.zMax,
-                    space.L, space.W, szMax - box.zMax
+                    sxMin, syMin, zMax,
+                    space.L, space.W, szMax - zMax
             ));
         }
 
@@ -143,58 +313,7 @@ public class SpaceManager {
      * מיזוג חללים שכנים לחללים גדולים יותר
      * Section 3.5 מהמאמר
      */
-    public List<Space> mergeSpaces(List<Space> spaces) {
-        if (spaces.size() <= 1) return new ArrayList<>(spaces);
 
-        List<Space> result = new ArrayList<>(spaces);
-        boolean merged = true;
-
-        // חזור עד שאין מיזוגים נוספים
-        while (merged) {
-            merged = false;
-            List<Space> newResult = new ArrayList<>();
-            boolean[] used = new boolean[result.size()];
-
-            for (int i = 0; i < result.size(); i++) {
-                if (used[i]) continue;
-
-                Space current = result.get(i);
-
-                for (int j = i + 1; j < result.size(); j++) {
-                    if (used[j]) continue;
-                    Space candidate = result.get(j);
-
-                    // Rule 1: Merge Left & Right (Equation 5)
-                    if (canMergeLeftRight(current, candidate)) {
-                        current = mergeLeftRight(current, candidate);
-                        used[j] = true;
-                        merged = true;
-                    }
-                    // Rule 2: Merge Front & Rear (Equation 6)
-                    else if (canMergeFrontRear(current, candidate)) {
-                        current = mergeFrontRear(current, candidate);
-                        used[j] = true;
-                        merged = true;
-                    }
-                    // Rule 3: Merge Top & Bottom (Z axis)
-                    else if (canMergeTopBottom(current, candidate)) {
-                        current = mergeTopBottom(current, candidate);
-                        used[j] = true;
-                        merged = true;
-                    }
-                }
-
-                newResult.add(current);
-                used[i] = true;
-            }
-
-            result = newResult;
-        }
-
-        return result;
-    }
-
-    // --- Rule 1: Left & Right (Y axis) ---
 
     private boolean canMergeLeftRight(Space s1, Space s2) {
         // אותו X range, אותו Z range, צמודים ב-Y
@@ -258,21 +377,13 @@ public class SpaceManager {
         List<Space> filtered = spaces.stream()
                 .filter(s -> s.getVolume() > 1e-6)
                 .sorted((a, b) -> Double.compare(b.getVolume(), a.getVolume()))
-                .collect(Collectors.toList());
-
+                .toList();
         // הסר חללים המכוסים בחללים אחרים
         List<Space> cleaned = new ArrayList<>();
         for (Space s : filtered) {
-            boolean contained = false;
-            for (Space big : cleaned) {
-                if (isContained(s, big)) {
-                    contained = true;
-                    break;
-                }
-            }
+            boolean contained = cleaned.stream().anyMatch(big -> isContained(s, big));
             if (!contained) cleaned.add(s);
         }
-
         return cleaned;
     }
 
@@ -283,137 +394,6 @@ public class SpaceManager {
                 inner.z + inner.H <= outer.z + outer.H + 1e-9;
     }
 
-    // ============================================================
-    //  PlacedBox: מבנה עזר לארגז שהונח
-    // ============================================================
-
-    /**
-     * מבנה עזר שמייצג ארגז שהונח במכולה
-     */
-    public static class PlacedBox {
-        public double xMin, yMin, zMin;
-        public double xMax, yMax, zMax;
-
-        public PlacedBox(double xMin, double yMin, double zMin,
-                         double xMax, double yMax, double zMax) {
-            this.xMin = xMin;
-            this.yMin = yMin;
-            this.zMin = zMin;
-            this.xMax = xMax;
-            this.yMax = yMax;
-            this.zMax = zMax;
-        }
-
-        /**
-         * יצירה מתוך חלל + כיוון (orientation)
-         */
-        public static PlacedBox fromSpaceAndOrientation(Space space, Orientation ori) {
-            return new PlacedBox(
-                    space.x, space.y, space.z,
-                    space.x + ori.l, space.y + ori.w, space.z + ori.h
-            );
-        }
-    }
-    public List<Space> splitIntoResiduals(Space current, Orientation o) {
-
-        List<Space> residuals = new ArrayList<>();     // רשימת חללים חדשה שנחזיר
-
-        double x = current.x;                          // שומרים את נקודת ההתחלה X
-        double y = current.y;                          // שומרים את נקודת ההתחלה Y
-        double z = current.z;                          // שומרים את נקודת ההתחלה Z
-
-        double L = current.L;                          // אורך החלל
-        double W = current.W;                          // רוחב החלל
-        double H = current.H;                          // גובה החלל
-
-        double l = o.l;                                // אורך הארגז בכיוון שנבחר
-        double w = o.w;                                // רוחב הארגז בכיוון שנבחר
-        double h = o.h;                                // גובה הארגז בכיוון שנבחר
-
-        // -------------------------
-        // RIGHT SPACE — חלל ימני
-        // -------------------------
-        if (L - l > 1e-6) {                            // אם נשאר אורך מימין לארגז
-            residuals.add(new Space(
-                    x + l,                             // מתחיל אחרי הארגז בציר X
-                    y,                                 // אותו Y
-                    z,                                 // אותו Z
-                    L - l,                             // האורך שנותר
-                    W,                                 // כל הרוחב
-                    H                                  // כל הגובה
-            ));
-        }
-
-        // -------------------------
-        // FRONT SPACE — חלל קדמי
-        // -------------------------
-        if (W - w > 1e-6) {                            // אם נשאר רוחב מלפנים
-            residuals.add(new Space(
-                    x,                                 // אותו X
-                    y + w,                             // מתחיל אחרי הארגז בציר Y
-                    z,                                 // אותו Z
-                    l,                                 // כל האורך
-                    W - w,                             // הרוחב שנותר
-                    H                                  // כל הגובה
-            ));
-        }
-
-        // -------------------------
-        // TOP SPACE — חלל עליון
-        // -------------------------
-        if (H - h > 1e-6) {                            // אם נשאר גובה מעל הארגז
-            residuals.add(new Space(
-                    x,                                 // אותו X
-                    y,                                 // אותו Y
-                    z + h,                             // מתחיל מעל הארגז
-                    l,                                 // כל האורך
-                    w,                                 // כל הרוחב
-                    H - h                              // הגובה שנותר
-            ));
-        }
-
-        return residuals;                              // מחזירים את שלושת חללי השארית
-    }
 
 
-    public List<Space> splitIntoResidualsNewLayerVU(Space current, Orientation o) {
-
-        List<Space> residuals = new ArrayList<>();     // רשימת חללים חדשה שנחזיר
-        double x = current.x;                          // שומרים את נקודת ההתחלה X
-        double y = current.y;                          // שומרים את נקודת ההתחלה Y
-        double z = current.z;                          // שומרים את נקודת ההתחלה Z
-        double L = current.L;                          // אורך החלל
-        double W = current.W;                          // רוחב החלל
-        double H = current.H;                          // גובה החלל
-        double l = o.l;                                // אורך הארגז בכיוון שנבחר
-        double w = o.w;                                // רוחב הארגז בכיוון שנבחר
-        double h = o.h;                                // גובה הארגז בכיוון שנבחר
-
-
-        // RIGHT SPACE — חלל ימני
-        if (W - w > 1e-6) {                            // אם נשאר רוחב מלפנים
-            residuals.add(new Space(
-                    x,                                 // אותו X
-                    y + w,                             // מתחיל אחרי הארגז בציר Y
-                    z,                                 // אותו Z
-                    l,                                 // כל האורך
-                    W - w,                             // הרוחב שנותר
-                    H                                  // כל הגובה
-            ));
-        }
-        // TOP SPACE — חלל עליון
-        if (H - h > 1e-6) {                            // אם נשאר גובה מעל הארגז
-            residuals.add(new Space(
-                    x,                                 // אותו X
-                    y,                                 // אותו Y
-                    z + h,                             // מתחיל מעל הארגז
-                    l,                                 // כל האורך
-                    w,                                 // כל הרוחב
-                    H - h                              // הגובה שנותר
-            ));
-        }
-
-        return residuals;                              // מחזירים את שלושת חללי השארית
-    }
-
-    }
+}

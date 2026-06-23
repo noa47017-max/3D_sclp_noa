@@ -58,16 +58,14 @@ public class LoadingChain {
         double[] b = {s.x, s.y, s.z};
         double[] t = {s.x + o.l, s.y + o.w, s.z + o.h};
 
-        // ✅ תיקון: VR צריך להיות סכום ה-residual spaces שנוצרו אחרי הנחת הארגז
-        // (Right + Front + Top residuals)
         double vrRight = Math.max(0, s.L - o.l) * s.W * s.H;
         double vrFront = Math.max(0, s.W - o.w) * s.L * s.H;
         double vrTop = Math.max(0, s.H - o.h) * s.L * s.W;
         double vrTotal = vrRight + vrFront + vrTop;
-
+        //הוספת הצעד לרשימה
         steps.add(new PlacedBoxInfo(cargo.id, o.id, b, t, vrTotal, stateKey));
 
-        // תיקון חישוב הנפח - הנפח שהתווסף הוא נפח הארגז בפועל
+        // הנפח שהתווסף הוא נפח הארגז בפועל
         totalCargoVolume += (o.l * o.w * o.h);
     }
     public List<PlacedBoxInfo> getSteps() {

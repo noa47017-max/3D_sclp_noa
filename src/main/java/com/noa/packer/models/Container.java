@@ -2,7 +2,7 @@ package com.noa.packer.models;
 
 import org.bson.types.ObjectId;
 
-public class Container {
+public class Container extends Box {
 
     private ObjectId id;
     private ObjectId userId;

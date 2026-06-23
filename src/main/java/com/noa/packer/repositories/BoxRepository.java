@@ -57,44 +57,5 @@ public class BoxRepository {
         return newId;
     }
 
-    // ➕ שמירת רשימת ארגזים
-    public List<ObjectId> saveAll(List<Box> boxes) {
-        List<ObjectId> ids = new ArrayList<>();
-        for (Box box : boxes)
-            ids.add(save(box));
-        return ids;
-    }
-
-    // 📖 כל הארגזים של משתמש
-    public List<Box> getByUserId(ObjectId userId) {
-        List<Box> list = new ArrayList<>();
-        for (Document doc : collection.find(eq("userId", userId)))
-            list.add(documentToBox(doc));
-        return list;
-    }
-
-    // 🔍 ארגז לפי ID
-    public Box getById(ObjectId id) {
-        Document doc = collection.find(eq("_id", id)).first();
-        return doc != null ? documentToBox(doc) : null;
-    }
-
-    // 🗑️ מחיקת ארגז
-    public void delete(ObjectId id) {
-        collection.deleteOne(eq("_id", id));
-        System.out.println("🗑️ Box deleted!");
-    }
-
-    // 🔄 המרה: Box (DB) → CargoType (אלגוריתם)
-    public com.noa.packer.algorithms.CargoType toCargoType(Box box, int index) {
-        return new com.noa.packer.algorithms.CargoType(
-            index,
-            box.getL(),
-            box.getW(),
-            box.getH(),
-            box.getQuantity(),
-            box.getAllowedOrientations()
-        );
-    }
 }
 
