@@ -2,6 +2,7 @@ package com.noa.packer.algorithms;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class StrategySelector {
     private Random rand = new Random();
@@ -39,7 +40,7 @@ public class StrategySelector {
                                                    Space space, int tau) {
             //חישוב הסתברותי לפי התפלגות נורמלית בהתאם לאיטרציה הנוכחית
             double pTau = Math.exp(-Math.pow((double) tau / Global.M * 3.0, 2) / 2.0);
-            boolean useGreedy = rand.nextDouble() <= pTau;
+            boolean useGreedy = ThreadLocalRandom.current().nextDouble() <= pTau;
 
             String stateKey = pheromoneManager.generateStateWord(cargoTypes);
 

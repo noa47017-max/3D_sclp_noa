@@ -1,11 +1,13 @@
 package com.noa.packer.algorithms;
 
 import java.util.*;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import com.noa.packer.models.Container;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.util.concurrent.*;
 
 public class HybridLoadingSystem {
 
@@ -16,7 +18,8 @@ public class HybridLoadingSystem {
     private final SpaceManager spaceManager = new SpaceManager();
     private final AntLoadingEngine antLoadingEngine = new AntLoadingEngine(spaceManager, pheromoneManager, gsm, asm);
     private static final Logger logger = LoggerFactory.getLogger(HybridLoadingSystem.class);
-
+    private final ExecutorService executor = Executors.newFixedThreadPool(
+            Runtime.getRuntime().availableProcessors());
     public LoadingChain startLoadingProcess(Container container, List<CargoType> cargoTypes) {
         // ===== שלב 1: אתחול =====
         initializeGlobalDimensions(cargoTypes);
@@ -41,17 +44,30 @@ public class HybridLoadingSystem {
     }
 
 
-    private LoadingChain executeIteration(Container container, List<CargoType> cargoTypes, int tau) {
-        LoadingChain bestIterationSolution = null;
-        // הפעל m נמלים בסדר רציף
+    private LoadingChain executeIteration(Container container,
+                                          List<CargoType> cargoTypes, int tau) {
+
+        List<Future<LoadingChain>> futures = new ArrayList<>();
+
         for (int antId = 0; antId < Global.m; antId++) {
-            //העתקת כל רשימת הארגזים
-            List<CargoType> antCargoes = deepCopyCargoes(cargoTypes);
-            // ייצור תוכנית טעינה
-            LoadingChain currentChain = antLoadingEngine.executeAntLoading(container, antCargoes, tau);
-            // בחר את הטוב ביותר באיטרציה זו
-            if (isBetterSolution(currentChain, bestIterationSolution)) {
-                bestIterationSolution = currentChain;
+            futures.add(executor.submit(() -> {
+                List<CargoType> antCargoes = deepCopyCargoes(cargoTypes);
+                // engine חדש לכל נמלה כי StrategySelector הוא per-thread
+                AntLoadingEngine localEngine = new AntLoadingEngine(
+                        spaceManager, pheromoneManager, gsm, asm);
+                return localEngine.executeAntLoading(container, antCargoes, tau);
+            }));
+        }
+
+        LoadingChain bestIterationSolution = null;
+        for (Future<LoadingChain> future : futures) {
+            try {
+                LoadingChain result = future.get();
+                if (isBetterSolution(result, bestIterationSolution)) {
+                    bestIterationSolution = result;
+                }
+            } catch (InterruptedException | ExecutionException e) {
+                logger.error("Ant execution failed", e);
             }
         }
         return bestIterationSolution;
@@ -130,8 +146,8 @@ public class HybridLoadingSystem {
 
     private void cleanupGlobalState() {
         Global.MIN_DIM = Double.MAX_VALUE;
+        executor.shutdown();
     }
-
 //    private LoadingChain executeAntLoading(Container container, List<CargoType> cargoTypes, int tau) {
 //        LoadingChain chain = new LoadingChain(container);
 //

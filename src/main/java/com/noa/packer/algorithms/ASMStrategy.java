@@ -3,6 +3,7 @@ package com.noa.packer.algorithms;
 import com.noa.packer.models.Container;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class ASMStrategy {
     private PheromoneManager manager;
@@ -261,11 +262,11 @@ public class ASMStrategy {
         // יש מועמדים אבל אין משקל הסתברותי
         if (totalWeight <= 0) {
             List<CargoSelection> keys = new ArrayList<>(weights.keySet());
-            return keys.get(random.nextInt(keys.size())); // בטוח: size > 0
+            return keys.get(ThreadLocalRandom.current().nextInt(keys.size()));// בטוח: size > 0
         }
 
         double currentSum = 0.0;
-        double threshold = java.util.concurrent.ThreadLocalRandom.current().nextDouble() * totalWeight;
+        double threshold = ThreadLocalRandom.current().nextDouble() * totalWeight;
         for (Map.Entry<CargoSelection, Double> entry : weights.entrySet()) {
             currentSum += entry.getValue();
             if (currentSum >= threshold) {
