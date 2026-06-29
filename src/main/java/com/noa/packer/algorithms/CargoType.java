@@ -7,11 +7,12 @@ public class CargoType {
     public double l, w, h;
     public int quantity;
     public int totalQuantity; // הכמות המקורית מההזמנה
-    private List<Integer> allowedOrientations;
+    private List<Orientation> allowedOrientations;
 
 
     public CargoType(int id, double l, double w, double h, int q,List<Integer> allowedOrientations) {
-        this.id = id; this.l = l; this.w = w; this.h = h; this.quantity = q; this.allowedOrientations = allowedOrientations;
+        this.id = id; this.l = l; this.w = w; this.h = h; this.quantity = q;
+        this.allowedOrientations = getPossibleOrientations(allowedOrientations);
         this.totalQuantity = q;
     }
     public CargoType(CargoType c) {
@@ -23,22 +24,18 @@ public class CargoType {
     { return l * w * h; }
 
 
-    public boolean canFit_(Space space) {
-        // בדיקה גיאומטרית בסיסית מול ממדי המרחב
-        return this.getMinDimension() <= Math.min(space.L, Math.min(space.W, space.H));
-    }
     public boolean canFit(Space space) {
-        return !getPossibleOrientations().stream()
+        return !getAllowedOrientations().stream()
                 .filter(ori -> ori.l <= space.L + 1e-9
                         && ori.w <= space.W + 1e-9
                         && ori.h <= space.H + 1e-9)
                 .findFirst()
                 .isEmpty();
     }
-    private double getMinDimension() {
-        return Math.min(this.l, this.w);
+    public List<Orientation> getAllowedOrientations(){
+        return this.allowedOrientations;
     }
-    public List<Orientation> getPossibleOrientations() {
+    public List<Orientation> getPossibleOrientations(List<Integer> allowedOrientations) {
         List<Orientation> available = new ArrayList<>();
 
         Orientation[] allSix = {

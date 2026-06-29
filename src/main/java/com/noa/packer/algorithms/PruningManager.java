@@ -1,19 +1,25 @@
 package com.noa.packer.algorithms;
-import java.util.TreeMap;
+
+import java.util.concurrent.ConcurrentSkipListMap;
 
 public class PruningManager {
-    // מפתח: מילת מצב בינארית, ערך: שרשרת הטעינה הטובה ביותר לאותו מצב [12, 18]
-    private TreeMap<String, LoadingChain> pruningMatrix = new TreeMap<>();
+    private final ConcurrentSkipListMap<String, Double> pruningMatrix;
 
-    public boolean shouldPrune(String stateWord, double currentVUR) {
-        if (pruningMatrix.containsKey(stateWord)) {
-            // השוואה: אם המצב הקיים בעץ טוב יותר, גזום את הנמלה הנוכחית [19, 20]
-            return currentVUR < pruningMatrix.get(stateWord).getVUR();
-        }
-        return false;
+    public PruningManager() {
+        this.pruningMatrix = new ConcurrentSkipListMap<>();
+    }
+    public boolean shouldPrune(String stateWord, double currentCumVR) {
+        Double bestCumVR = pruningMatrix.get(stateWord);
+        double tolerance = 1.15;
+
+        return bestCumVR != null && currentCumVR > (bestCumVR * tolerance);
+        //                                      ↑ יותר VR = יותר בזבוז = גזום
     }
 
-    public void updateMatrix(String stateWord, LoadingChain chain) {
-        pruningMatrix.put(stateWord, chain);
+    public void updateMatrix(String stateWord, double currentCumVR) {
+        pruningMatrix.merge(stateWord, currentCumVR, Math::min);
+        //                                           ↑ שומר את הנמוך ביותר
     }
+
+    public void reset() { pruningMatrix.clear(); }
 }

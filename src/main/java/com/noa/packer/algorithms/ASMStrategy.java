@@ -7,7 +7,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class ASMStrategy {
     private PheromoneManager manager;
-    private Random random = new Random();
     private OrientationOptimizer orientationOptimizer = new OrientationOptimizer();
 
 
@@ -100,13 +99,13 @@ public class ASMStrategy {
             if (cargo.quantity <= 0) continue;
 
             // עוברים על כל האורייטציות האפשריות של הארגז
-            for (Orientation ori : cargo.getPossibleOrientations()) {
+            for (Orientation ori : cargo.getAllowedOrientations()) {
                 // האם הארגז בכיוון הזה נכנס בחלל?
                 if (ori.l > space.L || ori.w > space.W || ori.h > space.H) continue;
 
                 int d = ori.id;
 
-                // ✅ פרומון לזוג (סוג, כיוון)
+                //  פרומון לזוג (סוג, כיוון)
                 double pheromone = manager.getPheromone(stateKey, cargo.id, d);
                 if (pheromone <= 0) pheromone = 1e-6;
 
@@ -217,16 +216,14 @@ public class ASMStrategy {
 //            }
 //        }
 
-    // כאן אתה משתמש ב-rouletteWheelSelection שכבר יש לך בקוד
-//        return rouletteWheelSelection(weights, totalWeight);
-//    }
+
     public CargoSelection selectCargo(Space space, List<CargoType> cargoes, String stateKey) {
         Map<CargoSelection, Double> weights = new HashMap<>();
         double totalWeight = 0;
         for (CargoType cargo : cargoes) {
             // בדיקה בסיסית: האם נשאר מהארגז והאם הוא נכנס פיזית בחלל
             if (cargo.quantity > 0 && cargo.canFit(space)) {
-                for (Orientation ori : cargo.getPossibleOrientations()) {
+                for (Orientation ori : cargo.getAllowedOrientations()) {
                     if (!(ori.l > space.L || ori.w > space.W || ori.h > space.H)) {
                         double pheromone = manager.getPheromone(stateKey, cargo.id, ori.id);
                         if (pheromone <= 0) pheromone = Global.EPSILON;
@@ -247,11 +244,43 @@ public class ASMStrategy {
         return result;
     }
     private double calculateVisibility(CargoType cargo, Orientation ori, Space space) {
-        // כמה יעיל להציב את הארגז הזה בחלל הזה?
-        double usedVolume = ori.l * ori.w * ori.h;
-        double spaceVolume = space.L * space.W * space.H;
-        return usedVolume / spaceVolume;  // ככל שיותר תפוס, טוב יותר
+        // ששטח בסיס
+        double usedVolume = ori.w * ori.h;
+        double spaceVolume =space.W * space.H;
+        double baseVisibility = usedVolume / spaceVolume;
+
+        // 2. חישוב השאריות שיישארו בכל ציר לאחר הנחת הארגז באוריינטציה הזו
+        double remL = space.L - ori.l;
+        double remW = space.W - ori.w;
+        double remH = space.H - ori.h;
+
+
+        double wasteW = (space.W % ori.w) * ori.h;
+        double wasteH = (space.H % ori.h) * ori.w;
+        double waste = wasteW + wasteH;
+
+        double bonus = 1.0;
+        double penalty = 1.0;
+
+
+        // סף מינימלי לחלל שמיש - אם נשאר רווח קטן מזה (אבל גדול מ-0), הוא יישאר ריק לנצח
+        double minUsableDim = Global.MIN_DIM;
+
+        // אם הארגז מתאים בדיוק לממד של החלל, זה מעולה כי לא נשארת "שארית זבל" בציר הזה
+        if (remL < Global.EPSILON) bonus += 0.1;
+        if (remW < Global.EPSILON) bonus += 0.1;
+        if (remH < Global.EPSILON) bonus += 0.1;
+
+        // אם נשאר רווח חיובי אבל הוא קטן מדי מכדי להכיל ארגז כלשהו, זהו נפח מבוזבז
+        if (remL > Global.EPSILON*5 && remL < minUsableDim) penalty *= 0.9;
+        if (remW > Global.EPSILON*5 && remW < minUsableDim) penalty *= 0.9;
+        if (remH > Global.EPSILON*5 && remH < minUsableDim) penalty *= 0.9;
+
+        // 3. שילוב הציון הסופי
+        // כעת ה-Visibility שונה לחלוטין בין אוריינטציות שונות של אותו ארגז!
+        return (1.0/(1.0 + waste))*0.5+0.5*baseVisibility * bonus * penalty;
     }
+
     //פונקציה לבחירה הסתברותית על פי משקלים
     private CargoSelection rouletteWheelSelection
     (Map<CargoSelection, Double> weights, double totalWeight) {

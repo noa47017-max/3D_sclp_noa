@@ -1,6 +1,10 @@
 package com.noa.packer.controllers;
 
+import com.noa.packer.dto.HistoryItemDTO;
+import com.noa.packer.dto.PackingResultDTO;
+import com.noa.packer.models.Container;
 import com.noa.packer.models.PackingResult;
+import com.noa.packer.repositories.ContainerRepository;
 import com.noa.packer.repositories.PackingResultRepository;
 import com.noa.packer.services.PackingService;
 import org.bson.types.ObjectId;
@@ -8,9 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -24,43 +26,47 @@ public class HistoryController {
     @Autowired
     private PackingResultRepository resultRepository;
 
-    // 📋 רשימת היסטוריה — ללא steps, עם id לכל פריט
+    @Autowired
+    private ContainerRepository containerRepository;
+
+    // רשימת היסטוריה — ללא placements
     @GetMapping("/history")
-    public ResponseEntity<?> getHistory(@RequestParam String userId) {
-        try {
-            List<PackingResult> history = packingService.getHistory(new ObjectId(userId));
-
-            List<Map<String, Object>> response = history.stream().map(item -> {
-                Map<String, Object> dto = new HashMap<>();
-                dto.put("id",           item.getId() != null ? item.getId().toHexString() : null);
-                dto.put("vur",          item.getVur());
-                dto.put("ContainerId", item.getContainerId());
-                dto.put("createdAt",    item.getCreatedAt());
-                // ← אין steps כאן — מסמכים קטנים, ללא שגיאת זיכרון
-                return dto;
-            }).collect(Collectors.toList());
-
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            System.err.println("HistoryController.getHistory error: " + e.getMessage());
-            return ResponseEntity.status(500).build();
+    public ResponseEntity<List<HistoryItemDTO>> getHistory(@RequestParam String userId) {
+        if (userId == null || userId.length() != 24) {
+            return ResponseEntity.badRequest().build();
         }
+
+        List<PackingResult> history = packingService.getHistory(new ObjectId(userId));
+
+        List<HistoryItemDTO> response = history.stream().map(item -> {
+            String containerSize = "";
+            if (item.getContainerId() != null) {
+                Container c = containerRepository.getById(item.getContainerId());
+                if (c != null) {
+                    containerSize = (int)c.getL() + " × " + (int)c.getW() + " × " + (int)c.getH();
+                }
+            }
+            return new HistoryItemDTO(
+                    item.getId() != null ? item.getId().toHexString() : null,
+                    item.getVur(),
+                    item.getCreatedAt(),
+                    containerSize
+            );
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(response);
     }
 
-    // 🔍 סידור מלא לפי id — נקרא כשלוחצים "צפה"
+    // סידור מלא לפי id — כשלוחצים "צפה"
     @GetMapping("/history/{id}")
-    public ResponseEntity<?> getHistoryItem(@PathVariable String id) {
-        try {
-            PackingResult result = resultRepository.getById(new ObjectId(id));
-            if (result == null) return ResponseEntity.notFound().build();
-
-            Map<String, Object> dto = new HashMap<>();
-            dto.put("placements",        result.getPlacements());
-            dto.put("containerId", result.getContainerId());
-            return ResponseEntity.ok(dto);
-        } catch (Exception e) {
-            System.err.println("HistoryController.getHistoryItem error: " + e.getMessage());
-            return ResponseEntity.status(500).build();
+    public ResponseEntity<PackingResultDTO> getHistoryItem(@PathVariable String id) {
+        if (id == null || id.length() != 24) {
+            return ResponseEntity.badRequest().build();
         }
+
+        PackingResult result = resultRepository.getById(new ObjectId(id));
+        if (result == null) return ResponseEntity.notFound().build();
+
+        return ResponseEntity.ok(new PackingResultDTO(result));
     }
 }

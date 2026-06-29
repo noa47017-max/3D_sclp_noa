@@ -1,22 +1,24 @@
 package com.noa.packer.controllers;
 
+import com.noa.packer.dto.LoginRequest;
+import com.noa.packer.dto.LoginResponse;
+import com.noa.packer.dto.RegisterRequest;
 import com.noa.packer.models.User;
 import com.noa.packer.repositories.UserRepository;
 import com.noa.packer.security.CustomUserDetails;
 import com.noa.packer.services.UserService;
 import com.noa.packer.security.JwtService;
 
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
 @CrossOrigin(origins = "*")
-public class UserController extends UserRepository {
+public class UserController {
 
     @Autowired
     private UserService userService;
@@ -24,40 +26,29 @@ public class UserController extends UserRepository {
     @Autowired
     private JwtService jwtService; // ← הזרקת שירות הטוקנים
 
-    // ➕ הרשמה
+    //הרשמה
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody Map<String, String> body) {
+    public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
         String result = userService.registerUser(
-            body.get("username"),
-            body.get("email"),
-            body.get("password")
+                request.getUsername(),
+                request.getEmail(),
+                request.getPassword()
         );
         return ResponseEntity.ok(result);
     }
 
     //  התחברות מעודכנת עם טוקן
     @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@RequestBody Map<String, String> body) {
-        Map<String, String> response = new HashMap<>();
-        System.out.println("DEBUG: Entering login method");
-        User user = userService.getUserAfterLogin(body.get("username"), body.get("password"));
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+        User user = userService.getUserAfterLogin(request.getEmail(), request.getPassword());
 
         if (user != null) {
-            // הגרלת טוקן עבור המשתמש שהתחבר בהצלחה
             CustomUserDetails userDetails = new CustomUserDetails(user);
             String token = jwtService.generateToken(userDetails);
-
-            response.put("status", "success");
-            response.put("token", token); // ← הוספת הטוקן לתשובה שמתקבלת ב-Client
-            response.put("userId",  user.getId().toString()); 
-            response.put("username", user.getUsername());
-        } else {
-            response.put("status",  "fail");
-            response.put("message", "שם משתמש או סיסמא שגויים");
+            return ResponseEntity.ok(new LoginResponse(token, user.getId().toString(), user.getUsername()));
         }
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(new LoginResponse("אימייל או סיסמא שגויים"));
     }
-
     //  בקשת שחזור סיסמא (משתמש בטוקן פנימי של המערכת לשחזור, לא קשור ל-JWT)
     @PostMapping("/forgot-password")
     public ResponseEntity<String> forgotPassword(@RequestBody Map<String, String> body) {

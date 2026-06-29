@@ -33,14 +33,14 @@ public class SpaceState {
                                            double xMax, double yMax, double zMax) {
         // 1. חיתוך — כולם
         currentLayer = spaceManager.updateSpacesAfterPlacement(currentLayer, xMin, yMin, zMin, xMax, yMax, zMax);
-        nextLayers = spaceManager.updateSpacesAfterPlacement(nextLayers, xMin, yMin, zMin, xMax, yMax, zMax);
         retrySpaces = spaceManager.updateSpacesAfterPlacement(retrySpaces, xMin, yMin, zMin, xMax, yMax, zMax);
 
         // 2. מיזוג רק החדשים מול הקיימים
-        if (!pendingNew.isEmpty()) {
-            currentLayer = spaceManager.mergeNewInto(currentLayer, pendingNew);
-            pendingNew.clear();
-        }
+//        if (!pendingNew.isEmpty()) {
+//            currentLayer = spaceManager.mergeNewInto(currentLayer, pendingNew);
+//            pendingNew.clear();
+//        }
+        currentLayer = spaceManager.mergeSpaces(currentLayer);
     }
 
 
@@ -52,17 +52,17 @@ public class SpaceState {
     }
     //הוספת 3 החללים לאחר הנחת ארגז
     public void addResidualSpaces(Space space, Orientation orientation, boolean isNewLayer) {
+
         double x = space.x, y = space.y, z = space.z;
         double L = space.L, W = space.W, H = space.H;
         double l = orientation.l, w = orientation.w, h = orientation.h;
-        pendingNew.clear();
         // Top space
         if (H - h > Global.EPSILON) {
-            pendingNew.add(new Space(x, y, z + h, l, w, H - h));
+            currentLayer.add(new Space(x, y, z + h, l, w, H - h));
         }
         // Side space
         if (W - w > Global.EPSILON) {
-            pendingNew.add(new Space(x, y + w, z, l, W - w, H));
+            currentLayer.add(new Space(x, y + w, z, l, W - w, H));
         }
         // Front space
         if (L - l > Global.EPSILON) {
@@ -72,18 +72,18 @@ public class SpaceState {
             if (isNewLayer) {
                 layerXEnd = frontX;
                 nextLayers.add(new Space(frontX, y, z, frontL, W, H));
+                currentLayer = spaceManager.mergeRetryInto(
+                        currentLayer, retrySpaces);
+                retrySpaces.clear();
             } else if (frontX >= layerXEnd - Global.EPSILON) {
                 // כולו מעבר לגבול → שכבה הבאה
-                nextLayers.add(new Space(frontX, y, z, frontL, W, H));
             } else if (frontX + frontL > layerXEnd + Global.EPSILON) {
                 // חוצה → פיצול
                 double insideL = layerXEnd - frontX;
-                double outsideL = frontX + frontL - layerXEnd;
-                pendingNew.add(new Space(frontX, y, z, insideL, W, H));
-                nextLayers.add(new Space(layerXEnd, y, z, outsideL, W, H));
+                currentLayer.add(new Space(frontX, y, z, insideL, W, H));
             } else {
                 // כולו בפנים
-                pendingNew.add(new Space(frontX, y, z, frontL, W, H));
+                currentLayer.add(new Space(frontX, y, z, frontL, W, H));
             }
         }
     }

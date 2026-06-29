@@ -4,18 +4,16 @@ import java.util.*;
 import com.noa.packer.models.Container;
 
 public class AntLoadingEngine {
-    private final SpaceManager spaceManager;
-    private final PheromoneManager pheromoneManager;
-    private final GSMStrategy gsm;
-    private final ASMStrategy asm;
-    private final StrategySelector strategySelector;
+    private SpaceManager spaceManager;
+    private PheromoneManager pheromoneManager;
+    private StrategySelector strategySelector;
+    private PruningManager pruningManager;
 
     public AntLoadingEngine(SpaceManager spaceManager, PheromoneManager pheromoneManager,
-                            GSMStrategy gsm, ASMStrategy asm) {
+                            GSMStrategy gsm, ASMStrategy asm ,PruningManager pruningManager) {
         this.spaceManager = spaceManager;
         this.pheromoneManager = pheromoneManager;
-        this.gsm = gsm;
-        this.asm = asm;
+        this.pruningManager = pruningManager;
         strategySelector = new StrategySelector(gsm, asm, pheromoneManager);
     }
 
@@ -24,58 +22,89 @@ public class AntLoadingEngine {
         LoadingChain chain = new LoadingChain(container);
         SpaceState spaceState = initializeSpaceState(container);
         boolean isNewLayer = true;
-        while ((!spaceState.currentLayer.isEmpty() || !spaceState.nextLayers.isEmpty())
-                && hasCargo(cargoTypes)) {
+        while ((!spaceState.currentLayer.isEmpty() || !spaceState.nextLayers.isEmpty()) && hasCargo(cargoTypes)) {
+            Space currentSpace;
+
             // מעבר לשכבה הבאה אם גמרנו למלא את השכבה הנוכחית
             if (spaceState.currentLayer.isEmpty()) {
+                    isNewLayer = true;
+                    currentSpace = spaceState.nextLayers.remove(0);
+                    spaceState.nextLayers.clear();
 
-                spaceState.currentLayer = spaceManager.mergeRetryInto(
-                        spaceState.nextLayers, spaceState.retrySpaces);
-                spaceState.nextLayers.clear();
-                spaceState.retrySpaces.clear();
-                isNewLayer = true;
             }
+            else{
             spaceState.sortSpacesByPosition();
-            Space currentSpace = spaceState.currentLayer.remove(0);
-            //בחירת ארגז
-            CargoSelection choice = strategySelector.selectCargoAndOrientation(chain, cargoTypes, currentSpace,
-                    isNewLayer, tau);
-            if (choice.cargo() != null && choice.orientation() != null) {
-                // הנחת הארגז
-                placeCargoInSpace(choice, chain, cargoTypes, currentSpace, spaceState);
-                // יצירת 3 החללים מסביב לארגז
-                spaceState.addResidualSpaces(currentSpace, choice.orientation(), isNewLayer);
+            currentSpace = spaceState.currentLayer.remove(0);
+            }
+            if (attemptPlacement(currentSpace, chain, cargoTypes, spaceState, isNewLayer, tau)) {
                 isNewLayer = false;
-                // עדכון החללים
-                spaceState.updateSpacesAfterPlacement(
-                        currentSpace.x, currentSpace.y, currentSpace.z,
-                        currentSpace.x + choice.orientation().l, currentSpace.y + choice.orientation().w, currentSpace.z + choice.orientation().h );
             } else {
-                // לא ניתן למלא - מוסיפים לרשימת ה VR
                 spaceState.retrySpaces.add(currentSpace);
+            }
+        }
+        if (spaceState.currentLayer.isEmpty() && spaceState.nextLayers.isEmpty()) {
+            spaceState.currentLayer = spaceManager.mergeSpaces(spaceState.retrySpaces);
+
+            while (!spaceState.currentLayer.isEmpty() && hasCargo(cargoTypes)) {
+                spaceState.sortSpacesByPosition();
+                Space currentSpace = spaceState.currentLayer.remove(0);
+                attemptPlacement(currentSpace, chain, cargoTypes, spaceState, false, tau);
             }
         }
         return chain;
     }
+    private boolean attemptPlacement(Space currentSpace, LoadingChain chain, List<CargoType> cargoTypes, SpaceState spaceState, boolean isNewLayer, int tau) {
 
+
+        String stateKey = pheromoneManager.generateStateWord(cargoTypes);
+        // בחירת ארגז
+        CargoSelection choice = strategySelector.selectCargoAndOrientation(chain, cargoTypes, currentSpace, isNewLayer, tau, stateKey);
+
+        if (choice.cargo() != null && choice.orientation() != null) {
+            // הנחת הארגז
+            placeCargoInSpace(choice, chain, currentSpace,  stateKey);
+            // יצירת 3 החללים מסביב לארגז
+            spaceState.addResidualSpaces(currentSpace, choice.orientation(), isNewLayer);
+
+            // עדכון החללים
+            spaceState.updateSpacesAfterPlacement(
+                    currentSpace.x, currentSpace.y, currentSpace.z,
+                    currentSpace.x + choice.orientation().l,
+                    currentSpace.y + choice.orientation().w,
+                    currentSpace.z + choice.orientation().h
+            );
+
+            // תהליך גיזום (Pruning)
+            if (pruningManager != null && chain.getSteps().size() > 10) {
+                String pruneKey = pheromoneManager.generateStateWord(cargoTypes);
+                if (pruningManager.shouldPrune(pruneKey, chain.getCumulativeVR())) {
+                    spaceState.currentLayer.clear();
+                    spaceState.nextLayers.clear();
+                    spaceState.retrySpaces.clear();
+                }
+                pruningManager.updateMatrix(pruneKey, chain.getCumulativeVR());
+            }
+            return true;
+        }
+        return false;
+    }
     private SpaceState initializeSpaceState(Container container) {
         SpaceState state = new SpaceState();
-        state.currentLayer.add(new Space(0, 0, 0,
+        state.nextLayers.add(new Space(0, 0, 0,
                 container.getLength(), container.getWidth(), container.getHeight()));
         return state;
     }
 
     // הנחת הארגז
-    private void placeCargoInSpace(CargoSelection choice, LoadingChain chain, List<CargoType> cargoTypes,
-                                              Space space, SpaceState spaceState) {
+    private void placeCargoInSpace(CargoSelection choice, LoadingChain chain,
+                                              Space space, String stateKey) {
         //יצירת מילת מצב
-        String stateKey = pheromoneManager.generateStateWord(cargoTypes);
         chain.addStep(choice.cargo(), choice.orientation(), space, stateKey);
         // הורדה מכמות הארגזים מהסוג הנבחר
         choice.cargo().decreaseQuantity();
         // עדכון פורמון
         pheromoneManager.depositAndEvaporate(stateKey, choice.cargo().id, choice.orientation(), space,
-                space.getVolume() - choice.cargo().getVolume());
+                chain.getCumulativeVR());
     }
 
     private boolean hasCargo(List<CargoType> cargoTypes) {

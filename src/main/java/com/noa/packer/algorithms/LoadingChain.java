@@ -11,6 +11,7 @@ public class LoadingChain {
     private List<PlacedBoxInfo> steps = new ArrayList<>();
     private double totalCargoVolume = 0;
     private double containerVolume;
+    private double cumulativeVR = 0;
     private ObjectId containerID;
 
     public LoadingChain(Container container) {
@@ -64,7 +65,7 @@ public class LoadingChain {
         double vrTotal = vrRight + vrFront + vrTop;
         //הוספת הצעד לרשימה
         steps.add(new PlacedBoxInfo(cargo.id, o.id, b, t, vrTotal, stateKey));
-
+        cumulativeVR += vrTotal;
         // הנפח שהתווסף הוא נפח הארגז בפועל
         totalCargoVolume += (o.l * o.w * o.h);
     }
@@ -91,7 +92,7 @@ public class LoadingChain {
     public ObjectId getContainerID() {
         return containerID;
     }
-
+    public double getCumulativeVR() { return cumulativeVR; }
     public double getTotalCargoVolume() {
         return totalCargoVolume;
     }

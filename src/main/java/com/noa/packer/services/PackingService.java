@@ -9,6 +9,7 @@ import com.noa.packer.algorithms.CargoType;
 import com.noa.packer.algorithms.HybridLoadingSystem;
 import com.noa.packer.controllers.PackingController;
 import com.noa.packer.dto.PackingRequestDTO;
+import com.noa.packer.dto.PackingResultDTO;
 import com.noa.packer.models.Box;
 import com.noa.packer.repositories.BoxRepository;
 import org.bson.types.ObjectId;
@@ -74,26 +75,23 @@ public class PackingService {
         }
         return cargoTypes;
     }
-    public ResponseEntity<?> solve(@RequestBody PackingRequestDTO request) {
+    public PackingResultDTO solve(@RequestBody PackingRequestDTO request) {
         try {
-            if (request.userId == null || request.userId.isEmpty()) {
-                return ResponseEntity.status(400)
-                        .body("שגיאה: userId חסר בבקשה");
-            }
+
 
             // 1. חילוץ מידות המכולה
-            double L = request.container.get("l");
-            double W = request.container.get("w");
-            double H = request.container.get("h");
+            double L = request.getContainer().get("l");
+            double W = request.getContainer().get("w");
+            double H = request.getContainer().get("h");
 
-            ObjectId userId = new ObjectId(request.userId);
+            ObjectId userId = new ObjectId(request.getUserId());
             Container container = new Container(userId, L, W, H);
 
             // 2 + 3. שמירה למסד נתונים - תבוצע אך ורק אם זה לא בנצ'מארק
-            if (!request.isBenchmark) {
+            if (!request.getIsBenchmark()) {
                 containerRepository.save(container);
 
-                for (Map<String, Object> boxMap : request.boxes) {
+                for (Map<String, Object> boxMap : request.getBoxes()) {
                     // חילוץ מערך הסיבובים הדינמי שהגיע מהמשתמש, אם לא קיים שמים ברירת מחדל (0-5)
                     List<Integer> allowedRotations = boxMap.containsKey("allowedRotations") ?
                             (List<Integer>) boxMap.get("allowedRotations") : Arrays.asList(0, 1, 2, 3, 4, 5);
@@ -111,31 +109,40 @@ public class PackingService {
             }
 
             // 4. המרת ארגזים (תוך שימוש במערך הסיבובים המותאם אישית)
-            List<CargoType> cargoTypes = convertToCargoTypes(request.boxes);
+            List<CargoType> cargoTypes = convertToCargoTypes(request.getBoxes());
 
             // 5. הפעלת האלגוריתם
             HybridLoadingSystem system = new HybridLoadingSystem();
             LoadingChain result = system.startLoadingProcess(container, cargoTypes);
-            System.out.println("Best VUR: " + String.format("%.2f", result.getVUR() * 100) + "%");
 
             // 6. שמירת התוצאה במסד - רק אם זה לא בנצ'מארק
-            if (!request.isBenchmark) {
+            if (!request.getIsBenchmark()) {
                 saveResult(userId, result);
             }
-
-            // 7. החזרת התוצאה לפרונט
-            return ResponseEntity.ok(result.getSteps());
-        } catch (Exception e) {
+            List<PackingResult.PlacedBoxData> placements = new ArrayList<>();
+            for (LoadingChain.PlacedBoxInfo step : result.getSteps()) {
+                placements.add(new PackingResult.PlacedBoxData(
+                        step.cargoType, step.direction,
+                        step.leftBackBottom, step.rightFrontTop
+                ));
+            }
+            PackingResult packingResult = new PackingResult(
+                    container.getId(),
+                    container.getVolume(),
+                    result.getTotalCargoVolume(), placements
+            );
+            return new PackingResultDTO(packingResult);
+        }
+        catch (Exception e) {
             e.printStackTrace();
             System.err.println("Error in /api/solve: " + e.getMessage());
-            return ResponseEntity.status(500)
-                    .body("שגיאה בחישוב: " + e.getMessage());
+            throw new RuntimeException("שגיאה בחישוב: " + e.getMessage(), e);
         }
     }
  /**
      * מחזיר את כל הסידורים של משתמש מסוים, מהחדש לישן.
      */
-    public List<PackingResult> getHistory(ObjectId userId) {
-        return packingResultRepository.getByUserId(userId);
-    }
-}
+ public List<PackingResult> getHistory(ObjectId userId) {
+     List<ObjectId> containerIds = containerRepository.getContainerIdsByUserId(userId);
+     return packingResultRepository.getByContainerIds(containerIds);
+ }}

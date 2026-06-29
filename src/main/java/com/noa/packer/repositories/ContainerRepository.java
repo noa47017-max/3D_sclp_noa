@@ -50,11 +50,17 @@ public class ContainerRepository {
         collection.insertOne(doc);
         ObjectId newId = doc.getObjectId("_id");
         container.setId(newId);
-        System.out.println("✅ Container saved: ");
+        System.out.println("Container saved: ");
         return newId;
     }
 
-
+    public List<ObjectId> getContainerIdsByUserId(ObjectId userId) {
+        List<ObjectId> ids = new ArrayList<>();
+        for (Document doc : collection.find(eq("userId", userId))) {
+            ids.add(doc.getObjectId("_id"));
+        }
+        return ids;
+    }
 
     // 🔍 מכולה לפי ID
     public Container getById(ObjectId id) {

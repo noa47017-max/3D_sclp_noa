@@ -43,17 +43,18 @@ public class GSMStrategy {
         Orientation bestOri = null;
         double bestScore = Double.NEGATIVE_INFINITY;
 
-        for (CargoType c : availableCargoes) {
-            if (c.quantity <= 0) continue;
+        for (CargoType cargo : availableCargoes) {
+            if (cargo.quantity <= 0) continue;
 
-            Orientation ori = orientationOptimizer.getBestOrientation(currentSpace, c);
+            Orientation ori = orientationOptimizer.getBestOrientation(currentSpace, cargo);
             if (ori == null) continue;
 
-            double score = evaluate(currentSpace, c, ori, placed);
+            // double score = evaluate(currentSpace, cargo, ori, placed);
+            double score = calculateVisibility(cargo, ori, currentSpace);
 
             if (score > bestScore) {
                 bestScore = score;
-                bestCargo = c;
+                bestCargo = cargo;
                 bestOri = ori;
             }
         }
@@ -61,7 +62,12 @@ public class GSMStrategy {
         if (bestCargo == null) return null;
         return new CargoSelection(bestCargo, bestOri);
     }
-
+    private double calculateVisibility(CargoType cargo, Orientation ori, Space space) {
+        // כמה יעיל להציב את הארגז הזה בחלל הזה?
+        double usedVolume = ori.l * ori.w * ori.h;
+        double spaceVolume = space.L * space.W * space.H;
+        return usedVolume / spaceVolume;  // ככל שיותר תפוס, טוב יותר
+    }
     private double evaluate(Space s, CargoType c, Orientation o,
                             List<LoadingChain.PlacedBoxInfo> placed) {
 

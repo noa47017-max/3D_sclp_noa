@@ -11,10 +11,10 @@ public class SpaceManager {
         List<Space> updatedSpaces = new ArrayList<>();
         for (Space space : allSpaces) {
             if (spacesOverlap(space, xMin, yMin, zMin,
-             xMax, yMax, zMax)) {
+                    xMax, yMax, zMax)) {
                 //  החלל חופף עם הארגז - חתוך אותו סביב הארגז
                 List<Space> fragments = cutSpaceAroundBox(space, xMin,  yMin,  zMin,
-                 xMax, yMax, zMax);
+                        xMax, yMax, zMax);
                 updatedSpaces.addAll(fragments);
             } else {
                 // החלל לא חופף - שמור אותו
@@ -42,7 +42,6 @@ public class SpaceManager {
             if (canMerge) {
                 result.add(retry);
             }
-            // לא מתמזג → נזרק
         }
 
         return mergeSpaces(result);
@@ -74,6 +73,7 @@ public class SpaceManager {
                         mergedSomething = true;
                         break;
                     }
+
                 }
             }
             result.add(current);
@@ -217,12 +217,11 @@ public class SpaceManager {
         if (newL < 1e-6 || newW < 1e-6 || newH < 1e-6) return null;
         return new Space(newX, newY, newZ, newL, newW, newH);
     }
-    /**
-     * בדוק אם חלל חופף עם ארגז שהונח
-     */
+
+    // בדוק אם חלל חופף עם ארגז שהונח
     private boolean spacesOverlap(Space space,double xMin, double yMin, double zMin,
                                   double xMax, double yMax, double zMax) {
-        return space.x < xMax && space.x + space.L > xMin &&
+        return space.x < xMax && space.x + space.L > xMin && //מתחיל לפני שנגמר הארגז ואחרי שהארגז מתחיל
                 space.y < yMax && space.y + space.W > yMin &&
                 space.z < zMax && space.z + space.H > zMin;
     }
@@ -305,9 +304,7 @@ public class SpaceManager {
                 .collect(Collectors.toList());
     }
 
-    // ============================================================
     //  MERGING: Section 3.5 - Remaining Space Merging Algorithm
-    // ============================================================
 
     /**
      * מיזוג חללים שכנים לחללים גדולים יותר
@@ -316,13 +313,12 @@ public class SpaceManager {
 
 
     private boolean canMergeLeftRight(Space s1, Space s2) {
-        // אותו X range, אותו Z range, צמודים ב-Y
+        // אותו X range, אותו Z range, צמודים או חופפים ב-Y
         boolean sameX = Math.abs(s1.x - s2.x) < 1e-9 && Math.abs(s1.L - s2.L) < 1e-9;
         boolean sameZ = Math.abs(s1.z - s2.z) < 1e-9 && Math.abs(s1.H - s2.H) < 1e-9;
-        boolean adjacentY = Math.abs((s1.y + s1.W) - s2.y) < 1e-9 ||
-                Math.abs((s2.y + s2.W) - s1.y) < 1e-9;
+        boolean touchOrOverlapY = s1.y <= s2.y + s2.W + 1e-9 && s2.y <= s1.y + s1.W + 1e-9;
 
-        return sameX && sameZ && adjacentY;
+        return sameX && sameZ && touchOrOverlapY;
     }
 
     private Space mergeLeftRight(Space s1, Space s2) {
@@ -336,10 +332,10 @@ public class SpaceManager {
     private boolean canMergeFrontRear(Space s1, Space s2) {
         boolean sameY = Math.abs(s1.y - s2.y) < 1e-9 && Math.abs(s1.W - s2.W) < 1e-9;
         boolean sameZ = Math.abs(s1.z - s2.z) < 1e-9 && Math.abs(s1.H - s2.H) < 1e-9;
-        boolean adjacentX = Math.abs((s1.x + s1.L) - s2.x) < 1e-9 ||
-                Math.abs((s2.x + s2.L) - s1.x) < 1e-9;
+        // צמודים או חופפים בציר X
+        boolean touchOrOverlapX = s1.x <= s2.x + s2.L + 1e-9 && s2.x <= s1.x + s1.L + 1e-9;
 
-        return sameY && sameZ && adjacentX;
+        return sameY && sameZ && touchOrOverlapX;
     }
 
     private Space mergeFrontRear(Space s1, Space s2) {
@@ -353,10 +349,10 @@ public class SpaceManager {
     private boolean canMergeTopBottom(Space s1, Space s2) {
         boolean sameX = Math.abs(s1.x - s2.x) < 1e-9 && Math.abs(s1.L - s2.L) < 1e-9;
         boolean sameY = Math.abs(s1.y - s2.y) < 1e-9 && Math.abs(s1.W - s2.W) < 1e-9;
-        boolean adjacentZ = Math.abs((s1.z + s1.H) - s2.z) < 1e-9 ||
-                Math.abs((s2.z + s2.H) - s1.z) < 1e-9;
+        // צמודים או חופפים ב-Z
+        boolean touchOrOverlapZ = s1.z <= s2.z + s2.H + 1e-9 && s2.z <= s1.z + s1.H + 1e-9;
 
-        return sameX && sameY && adjacentZ;
+        return sameX && sameY && touchOrOverlapZ;
     }
 
     private Space mergeTopBottom(Space s1, Space s2) {
@@ -365,10 +361,7 @@ public class SpaceManager {
         return new Space(s1.x, s1.y, newZ, s1.L, s1.W, newH);
     }
 
-    // ============================================================
     //  CLEANUP: ניקוי חללים
-    // ============================================================
-
     /**
      * ניקוי חללים - הסר קטנים ומכוסים
      */

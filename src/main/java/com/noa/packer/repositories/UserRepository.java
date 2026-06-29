@@ -63,7 +63,7 @@ public class UserRepository {
     }
 
 
-    // 🔍 READ – לפי אימייל
+    //  READ – לפי אימייל
     public User getUserByEmail(String email) {
         Document doc = collection.find(eq("email", email)).first();
         return doc != null ? documentToUser(doc) : null;

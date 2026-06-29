@@ -53,7 +53,7 @@ public class BoxRepository {
         collection.insertOne(doc);
         ObjectId newId = doc.getObjectId("_id");
         box.setId(newId);
-        System.out.println("✅ Box saved: " + newId);
+        System.out.println("Box saved: " + newId);
         return newId;
     }
 

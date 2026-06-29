@@ -1,9 +1,7 @@
 package com.noa.packer.algorithms;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class PheromoneManager {
 
@@ -17,10 +15,14 @@ public class PheromoneManager {
     private static final int MAX_TREE_SIZE = 50_000;
     private final double DELTA_LOCAL = 0.2;
     private ConcurrentSkipListMap<String, List<PheromoneNode>> pheromoneTree;
+    private final AtomicInteger treeSize;
 
     public PheromoneManager() {
         this.pheromoneTree = new ConcurrentSkipListMap<>();
+        this.treeSize = new AtomicInteger(0); // אתחול המונה
     }
+    public double getRho() { return RHO; }
+    public double getTau0() { return TAU0; }
     public String generateStateWord(List<CargoType> allTypes) {
         StringBuilder stateBuilder = new StringBuilder(allTypes.size() * (1 + Q));
         StringBuilder quantityDomain = new StringBuilder();
@@ -41,16 +43,66 @@ public class PheromoneManager {
         // שרשור התחומים
         return stateBuilder.append(quantityDomain).toString();
     }
+    public void shakeUpPheromones() {
+        // פקטור ניעור: נשאיר רק 20% מהפרומון הקיים כדי לשבור את הלופ
+        double shakeUpFactor = 0.2;
 
+        // מעבר על כל מפת/עץ הפרומונים שלך:
+        // (הנחתי שככה נראית בערך הלולאה אצלך, שנה לפי מבנה הנתונים שלך)
+        for (List<PheromoneNode> nodes : pheromoneTree.values()) {
+            synchronized (nodes) {
+                for (PheromoneNode node : nodes) {
+                double currentPhero = node.getConcentration();
+                // אידוי אגרסיבי במיוחד
+                node.setConcentration(currentPhero * shakeUpFactor);
+            }
+        }
+    }
+    }
     public void applyGlobalEvaporation() {
         for (List<PheromoneNode> nodes : pheromoneTree.values()) {
             synchronized (nodes) {
                 for (PheromoneNode node : nodes) {
                     // נידוף
-                    double decayed = (1 - RHO) * node.getConcentration();
-                    node.setConcentration(Math.max(decayed, TAU0));
+                    double decayed = (1 - RHO) * node.getConcentration()+RHO*TAU0;
+                    node.setConcentration(decayed);
                 }
             }
+        }
+        pruneTreeIfNeeded();
+    }
+
+    private void pruneTreeIfNeeded() {
+        if (treeSize.get() > MAX_TREE_SIZE) {
+            // המטרה: להסיר כ-20% מהצמתים החלשים ביותר כדי לפנות מקום
+            int targetSize = (int) (MAX_TREE_SIZE * 0.95);
+            int numToRemove = treeSize.get() - targetSize;
+
+            // איסוף כל הערכים מתוך המפה
+            List<Map.Entry<String, List<PheromoneNode>>> entries = new ArrayList<>(pheromoneTree.entrySet());
+
+            // מיון הרשימה: המצבים עם ריכוז הפרומונים המקסימלי הנמוך ביותר יופיעו בהתחלה
+            entries.sort(Comparator.comparingDouble(entry -> {
+                List<PheromoneNode> nodes = entry.getValue();
+                if (nodes == null || nodes.isEmpty()) return 0.0;
+                synchronized (nodes) {
+                    return nodes.stream()
+                            .mapToDouble(PheromoneNode::getConcentration)
+                            .max()
+                            .orElse(0.0);
+                }
+            }));
+
+            // מחיקת המצבים החלשים ביותר
+            int removedCount = 0;
+            for (int i = 0; i < entries.size() && removedCount < numToRemove; i++) {
+                if (pheromoneTree.remove(entries.get(i).getKey()) != null) {
+                    removedCount++;
+                }
+            }
+
+            // עדכון המונה באופן מדויק
+            treeSize.addAndGet(-removedCount);
         }
     }
     //  GLOBAL - אחרי איטרציה
@@ -58,10 +110,10 @@ public class PheromoneManager {
                                       double x, double y, double z, double x2, double y2, double z2,
                                       double currentVR, double delta) {
 
-        List<PheromoneNode> nodes = pheromoneTree
-                .computeIfAbsent(stateKey,
-                        k -> Collections.synchronizedList(new ArrayList<>()));
-
+        List<PheromoneNode> nodes = pheromoneTree.computeIfAbsent(stateKey, k -> {
+            treeSize.incrementAndGet(); // הגדלת המונה רק כאשר נוצר מפתח חדש
+            return Collections.synchronizedList(new ArrayList<>());
+        });
         synchronized (nodes) {
             PheromoneNode node = nodes.stream()
                     .filter(n -> n.getCargoId() == cargoId && n.getD() == direction)
@@ -100,9 +152,10 @@ public class PheromoneManager {
 
     public void depositAndEvaporate(String stateKey, int cargoId,
                                     Orientation direction, Space space, double currentVR) {
-        List<PheromoneNode> nodes = pheromoneTree
-                .computeIfAbsent(stateKey,
-                        k -> Collections.synchronizedList(new ArrayList<>()));
+        List<PheromoneNode> nodes = pheromoneTree.computeIfAbsent(stateKey, k -> {
+            treeSize.incrementAndGet(); // הגדלת המונה רק כאשר נוצר מפתח חדש
+            return Collections.synchronizedList(new ArrayList<>());
+        });
         synchronized (nodes) {
             PheromoneNode node = nodes.stream()
                     .filter(n -> n.getCargoId() == cargoId && n.getD() == direction.id)
@@ -110,7 +163,7 @@ public class PheromoneManager {
                     .orElse(null);
 
             if (node != null) {
-                node.setConcentration(node.getConcentration() + DELTA_LOCAL);
+                node.setConcentration((1-RHO_LOCAL)*node.getConcentration() + RHO_LOCAL * TAU0);
             } else {
                 double initialConcentration = TAU0 + DELTA_LOCAL;
                 PheromoneNode newNode = new PheromoneNode(
@@ -120,6 +173,10 @@ public class PheromoneManager {
                 nodes.add(newNode);
             }
         }
+    }
+    public void reset() {
+        pheromoneTree.clear();
+        treeSize.set(0);
     }
     public void applyGlobalUpdate(LoadingChain bestSolution, double delta) {
         if (bestSolution == null || bestSolution.getSteps() == null) return;

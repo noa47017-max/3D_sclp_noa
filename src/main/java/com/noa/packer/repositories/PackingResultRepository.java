@@ -88,11 +88,17 @@ public class PackingResultRepository {
     public ObjectId save(PackingResult result) {
         Document doc = resultToDocument(result);
         collection.insertOne(doc);
-        System.out.println("✅ Packing result saved! VUR: " + result.getVur());
+        System.out.println("Packing result saved! VUR: " + result.getVur());
         return doc.getObjectId("_id");
     }
 
-
+    public List<PackingResult> getByUserId(ObjectId userId) {
+        List<PackingResult> results = new ArrayList<>();
+        for (Document doc : collection.find(eq("userId", userId))
+                .sort(descending("createdAt")))
+            results.add(documentToResult(doc));
+        return results;
+    }
 
     // 🔍 תוצאה בודדת לפי ID
     public PackingResult getById(ObjectId id) {
@@ -100,12 +106,12 @@ public class PackingResultRepository {
         return doc != null ? documentToResult(doc) : null;
     }
 
-      // 📖 כל התוצאות של משתמש מסוים, מהחדש לישן
-    // 📖 כל התוצאות של משתמש מסוים, מהחדש לישן
-    public List<PackingResult> getByUserId(ObjectId userId) {
+    public List<PackingResult> getByContainerIds(List<ObjectId> containerIds) {
         List<PackingResult> results = new ArrayList<>();
-        for (Document doc : collection.find(eq("userId", userId))
-                                      .sort(descending("createdAt")))
+        if (containerIds == null || containerIds.isEmpty()) return results;
+
+        for (Document doc : collection.find(new Document("containerId", new Document("$in", containerIds)))
+                .sort(descending("createdAt")))
             results.add(documentToResult(doc));
         return results;
     }

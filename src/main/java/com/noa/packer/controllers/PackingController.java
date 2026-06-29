@@ -1,6 +1,7 @@
 package com.noa.packer.controllers;
 
 import com.noa.packer.dto.PackingRequestDTO;
+import com.noa.packer.dto.PackingResultDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,22 +24,16 @@ public class PackingController {
    @Autowired
    private PackingService packingService;        // ← חדש: שמירה למסד
 
-   @Autowired
-   private ContainerRepository containerRepository; // ← חדש: שמירת מכולה
 
    @PostMapping("/solve")
-   public ResponseEntity<?> solve(@RequestBody PackingRequestDTO request) {
+   public ResponseEntity<PackingResultDTO> solve(@RequestBody PackingRequestDTO request) {
        try {
-           if (request.userId == null || request.userId.isEmpty()) {
-               return ResponseEntity.status(400)
-                   .body("שגיאה: userId חסר בבקשה");
-           }
-           return packingService.solve(request);
+           PackingResultDTO result = packingService.solve(request);
+           return ResponseEntity.ok(result);
        } catch (Exception e) {
            e.printStackTrace();
            System.err.println("Error in /api/solve: " + e.getMessage());
-           return ResponseEntity.status(500)
-               .body("שגיאה בחישוב: " + e.getMessage());
+           return ResponseEntity.status(500).build();
        }
    }
 

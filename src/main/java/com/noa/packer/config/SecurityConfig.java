@@ -33,7 +33,7 @@ public class SecurityConfig {
                         // 🌟 הוסף את השורה הזו כדי לאפשר ל-Preflight לעבור
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
 
-                        .requestMatchers("/api/users/login", "/api/users/register", "/favicon.ico", "/solve").permitAll()
+                        .requestMatchers("/api/users/login", "/api/users/register", "/favicon.ico", "/solve", "/error").permitAll()
                         .requestMatchers("/", "/index.html", "/app.js", "/style.css").permitAll()
                         .anyRequest().authenticated()
                 )

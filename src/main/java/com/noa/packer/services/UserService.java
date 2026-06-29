@@ -2,6 +2,7 @@ package com.noa.packer.services;
 
 import com.noa.packer.models.User;
 import com.noa.packer.repositories.UserRepository;
+import com.noa.packer.util.SanitizeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,8 @@ public class UserService {
 
     // ➕ הרשמה
     public String registerUser(String username, String email, String password) {
+        username = SanitizeUtil.clean(username);
+        email    = SanitizeUtil.clean(email);
         if (userRepository.getUserByEmail(email) != null)
             return "❌ האימייל כבר קיים במערכת!";
         if (userRepository.getUserByUsername(username) != null)
@@ -37,24 +40,24 @@ public class UserService {
     public String loginUser(String username, String password) {
         User user = userRepository.getUserByUsername(username);
         if (user == null||!encoder.matches(password, user.getPassword()))
-            return "❌שם המשתמש או סיסמא שגויים!";
+            return "שם המשתמש או סיסמא שגויים!";
 
         if (!"active".equals(user.getSubscriptionStatus()))
-            return "❌ המנוי שלך אינו פעיל!";
+            return " המנוי שלך אינו פעיל!";
 
-        return "✅ התחברת בהצלחה!";
+        return " התחברת בהצלחה!";
     }
-    public User getUserAfterLogin(String username, String password) {
-           User user = userRepository.getUserByUsername(username);
+    public User getUserAfterLogin(String email, String password) {
+           User user = userRepository.getUserByEmail(email);
             if (user == null) return null;
             if (!encoder.matches(password, user.getPassword())) return null;
-           return user;
+        return user;
     }
-    // 📧 בקשת שחזור סיסמא
+    // בקשת שחזור סיסמא
     public String requestPasswordReset(String email) {
         User user = userRepository.getUserByEmail(email);
         if (user == null)
-            return "❌ האימייל לא נמצא במערכת!";
+            return "האימייל לא נמצא במערכת!";
 
         // יצירת Token אקראי בתוקף ל-30 דקות
         String token  = UUID.randomUUID().toString();
@@ -69,14 +72,14 @@ public class UserService {
     public String resetPassword(String token, String newPassword) {
         User user = userRepository.getUserByResetToken(token);
         if (user == null)
-            return "❌ הקישור לא תקין!";
+            return "הקישור לא תקין!";
 
         // בדיקה שה-Token לא פג תוקף
         if (user.getResetTokenExpiry().before(new Date()))
-            return "❌ הקישור פג תוקף! בקש קישור חדש.";
+            return "הקישור פג תוקף! בקש קישור חדש.";
 
         String hashedPassword = encoder.encode(newPassword);
         userRepository.updatePassword(user.getEmail(), hashedPassword);
-        return "✅ הסיסמא עודכנה בהצלחה!";
+        return "הסיסמא עודכנה בהצלחה!";
     }
 }

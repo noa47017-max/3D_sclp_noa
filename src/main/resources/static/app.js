@@ -7,7 +7,22 @@ let boxesToPack = [];
 let lastCalculatedData = [];
 let currentUserId = null;
 let jwtToken = null;
- 
+
+// ─── הגנת XSS + ולידציה ───
+function sanitize(str) {
+    if (typeof str !== 'string') return str;
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+function isValidPassword(pw) {
+    // לפחות 6 תווים, אות גדולה, אות קטנה, ספרה
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/.test(pw);
+}
 const screens = {
     login:     document.getElementById('login-screen'),
     menu:      document.getElementById('menu-screen'),
@@ -171,7 +186,7 @@ function hideError(elementId) {
     if (el) el.style.display = 'none';
 }
 async function authenticatedFetch(url, options = {}) {
-    return fetch(url, {
+    const response = await fetch(url, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -179,6 +194,14 @@ async function authenticatedFetch(url, options = {}) {
             ...(options.headers || {})
         }
     });
+
+    const newToken = response.headers.get('New-Token');
+    if (newToken) {
+        jwtToken = newToken;
+        localStorage.setItem(LS_TOKEN, newToken);
+    }
+
+    return response;
 }
  
 // ─────────────────────────────────────────────────────────────
@@ -188,29 +211,30 @@ const loginBtn = document.getElementById('loginBtn');
 if (loginBtn) {
     loginBtn.onclick = async () => {
         hideError('login-error');
-        const user = document.getElementById('username').value;
-        const pass = document.getElementById('password').value;
- 
-        if (!user || !pass) { showError('login-error', 'נא למלא שם משתמש וסיסמא'); return; }
- 
+        const email = sanitize(document.getElementById('email').value.trim());
+        const pass  = document.getElementById('password').value;
+
+        if (!email || !pass) { showError('login-error', 'נא למלא אימייל וסיסמא'); return; }
+        if (!isValidEmail(email)) { showError('login-error', 'פורמט אימייל לא תקין'); return; }
+
         try {
             const response = await fetch('https://localhost:8443/api/users/login', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ username: user, password: pass })
+                body: JSON.stringify({ email: email, password: pass })
             });
             const result = await response.json();
  
             if (response.ok && result.status === "success") {
-                saveSession(result.token, result.userId, user);
-                document.getElementById('user-display').innerText = user;
+                saveSession(result.token, result.userId, result.username);
+                document.getElementById('user-display').innerText = result.username;
                 hideError('login-error');
                 showScreen('menu');
             } else {
                 showError('login-error', result.message || 'אימייל או סיסמה שגויים');
             }
         } catch (err) {
-            showError('login-error', 'שגיאה בחיבור לשרת. ודאי שהשרת רץ בפורט 8443');
+            showError('login-error', 'שגיאה בחיבור לשרת. ודא שהשרת רץ בפורט 8443');
         }
     };
 }
@@ -222,12 +246,17 @@ const registerBtn = document.getElementById('registerBtn');
 if (registerBtn) {
     registerBtn.onclick = async () => {
         hideError('register-error');
-        const username  = document.getElementById('reg-username').value;
-        const email     = document.getElementById('reg-email').value;
+        const username  = sanitize(document.getElementById('reg-username').value.trim());
+        const email     = sanitize(document.getElementById('reg-email').value.trim());
         const password  = document.getElementById('reg-password').value;
         const password2 = document.getElementById('reg-password2').value;
- 
+
         if (!username || !email || !password || !password2) { showError('register-error', 'נא למלא את כל השדות'); return; }
+        if (!isValidEmail(email)) { showError('register-error', 'פורמט אימייל לא תקין'); return; }
+        if (!isValidPassword(password)) {
+            showError('register-error', 'הסיסמא חייבת להכיל לפחות 6 תווים, אות גדולה, אות קטנה וספרה');
+            return;
+        }
         if (password !== password2) { showError('register-error', 'הסיסמאות לא תואמות!'); return; }
  
         try {
@@ -344,10 +373,10 @@ document.getElementById('calculateBtn').onclick = async () => {
             body: JSON.stringify({ userId: currentUserId, container, boxes: boxesToPack, isBenchmark: false })
         }); // תוקן: fetch → authenticatedFetch (מוסיף Authorization header)
         const result = await response.json();
-        if (result && result.length > 0) {
-            lastCalculatedData = result;
+        if (result && result.placements && result.placements.length > 0) {
+            lastCalculatedData = result.placements;
             showScreen('result');
-            init3D(result, container);
+            init3D(result.placements, container);
         } else {
             alert("לא נמצא סידור אפשרי");
         }
@@ -366,18 +395,11 @@ async function runBenchmarkCase(tc) {
         method: 'POST',
         body: JSON.stringify({ userId: currentUserId, container: tc.container, boxes: preparedBoxes, isBenchmark: true })
     }); // תוקן: authenticatedFetch
-    const result = await response.json();
+    const data = await response.json();
     const ms = Date.now() - t0;
+    const result = data.placements || [];
+    const util = data.vur ? (data.vur * 100).toFixed(1) + '%' : '—';
 
-    let util = '—';
-    if (Array.isArray(result) && result.length > 0) {
-        const packed = result.reduce((s, b) => {
-            const [x0,y0,z0] = b.leftBackBottom, [x1,y1,z1] = b.rightFrontTop;
-            return s + Math.abs((x1-x0)*(y1-y0)*(z1-z0));
-        }, 0);
-        const cv = tc.container.l * tc.container.w * tc.container.h;
-        util = ((packed / cv) * 100).toFixed(1) + '%';
-    }
     return { result, ms, util };
 }
 
@@ -401,13 +423,12 @@ async function loadHistory() {
             tbody.innerHTML = '<tr><td colspan="3">אין סידורים קודמים</td></tr>';
             return;
         }
-
         tbody.innerHTML = historyData.map(item => `
-            <tr>
-                <td style="font-size:12px;">${new Date(item.createdAt).toLocaleDateString()}</td>
-                <td style="color:#e0787a; font-weight:bold;">${(item.vur * 100).toFixed(1)}%</td>
-                <td>
-                    <button onclick='loadAndViewHistory("${item.id}")'
+    <tr>
+        <td style="font-size:12px;">${sanitize(new Date(item.createdAt).toLocaleDateString())}</td>
+        <td style="color:#e0787a; font-weight:bold;">${sanitize((item.vur * 100).toFixed(1))}%</td>
+        <td>
+            <button onclick='loadAndViewHistory("${sanitize(item.id)}")'              
                             style="padding:4px 8px; font-size:11px; width:auto;">צפה</button>
                 </td>
             </tr>
@@ -571,7 +592,7 @@ document.getElementById('benchmarkRunBtn')?.addEventListener('click', async () =
 
     try {
         const { result, ms, util } = await runBenchmarkCase(tc);
-        if (Array.isArray(result) && result.length > 0) {
+        if (result.length > 0) {
             lastCalculatedData = result;
             showScreen('result');
             init3D(result, tc.container);

@@ -5,7 +5,6 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class StrategySelector {
-    private Random rand = new Random();
     private final GSMStrategy gsm;
     private final ASMStrategy asm;
     private final PheromoneManager pheromoneManager;
@@ -16,11 +15,11 @@ public class StrategySelector {
             this.pheromoneManager = pheromoneManager;
         }
         public CargoSelection selectCargoAndOrientation(LoadingChain chain, List<CargoType> cargoTypes,
-                                          Space space, boolean isNewLayer, int tau) {
+                                          Space space, boolean isNewLayer, int tau, String stateKey) {
             if (isNewLayer) {
                 return selectCargoForNewLayer(space, cargoTypes);
             } else {
-                return selectCargoForLayer(chain, cargoTypes, space, tau);
+                return selectCargoForLayer(chain, cargoTypes, space, tau, stateKey);
             }
         }
         private CargoSelection selectCargoForNewLayer(Space space, List<CargoType> cargoTypes) {
@@ -37,12 +36,10 @@ public class StrategySelector {
         }
 
         private CargoSelection selectCargoForLayer(LoadingChain chain, List<CargoType> cargoTypes,
-                                                   Space space, int tau) {
+                                                   Space space, int tau, String stateKey) {
             //חישוב הסתברותי לפי התפלגות נורמלית בהתאם לאיטרציה הנוכחית
             double pTau = Math.exp(-Math.pow((double) tau / Global.M * 3.0, 2) / 2.0);
             boolean useGreedy = ThreadLocalRandom.current().nextDouble() <= pTau;
-
-            String stateKey = pheromoneManager.generateStateWord(cargoTypes);
 
             CargoSelection choice = useGreedy ?
                     gsm.selectCargo(space, cargoTypes, chain.getSteps()) :

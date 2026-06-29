@@ -8,26 +8,22 @@ import java.util.List;
 
 public class PackingResultDTO {
 
-    private String             resultId;
     private String             containerId;
     private double             totalCargoVolume;
     private double             vur;
     private List<PlacedBoxData> placements;
     private Date               createdAt;
 
-    public PackingResultDTO() {}
 
     public PackingResultDTO(PackingResult result) {
-        this.resultId         = result.getId().toString();
-        this.containerId      = result.getContainerId().toString();
+        this.containerId      = result.getContainerId() != null ? result.getContainerId().toHexString() : null;
         this.totalCargoVolume = result.getTotalCargoVolume();
         this.vur              = result.getVur();
         this.placements       = result.getPlacements();
         this.createdAt        = result.getCreatedAt();
     }
 
-    public String              getResultId()                      { return resultId; }
-    public void                setResultId(String v)              { this.resultId = v; }
+
     public String              getContainerId()                   { return containerId; }
     public void                setContainerId(String v)           { this.containerId = v; }
     public double              getTotalCargoVolume()              { return totalCargoVolume; }

@@ -5,6 +5,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import com.noa.packer.models.Container;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.concurrent.*;
@@ -12,37 +13,49 @@ import java.util.concurrent.*;
 public class HybridLoadingSystem {
 
     // ========== משאבים משותפים ==========
-    private final PheromoneManager pheromoneManager = new PheromoneManager();
-    private final GSMStrategy gsm = new GSMStrategy();
-    private final ASMStrategy asm = new ASMStrategy(pheromoneManager);
-    private final SpaceManager spaceManager = new SpaceManager();
-    private final AntLoadingEngine antLoadingEngine = new AntLoadingEngine(spaceManager, pheromoneManager, gsm, asm);
+    private PheromoneManager pheromoneManager;
+    private GSMStrategy gsm;
+    private ASMStrategy asm;
+    private SpaceManager spaceManager ;
     private static final Logger logger = LoggerFactory.getLogger(HybridLoadingSystem.class);
-    private final ExecutorService executor = Executors.newFixedThreadPool(
+    private static final ExecutorService executor = Executors.newFixedThreadPool(
             Runtime.getRuntime().availableProcessors());
+    private final PruningManager pruningManager;
+    int stagnationCounter = 0;
+    final int STAGNATION_THRESHOLD = 25;
+    public HybridLoadingSystem(){
+        this.pheromoneManager = new PheromoneManager();
+        this.gsm = new GSMStrategy();
+        this.asm = new ASMStrategy(pheromoneManager);
+        this.spaceManager = new SpaceManager();
+        this.pruningManager = new PruningManager();
+        this.stagnationCounter = 0;
+    }
     public LoadingChain startLoadingProcess(Container container, List<CargoType> cargoTypes) {
-        // ===== שלב 1: אתחול =====
+
         initializeGlobalDimensions(cargoTypes);
         LoadingChain bestGlobalSolution = null;
-        // ===== שלב 2: לולאה על M איטרציות =====
+        //  לולאה על M איטרציות
         for (int tau = 0; tau < Global.M; tau++) {
             // 2.1: הפעל איטרציה אחת (m נמלים)
             LoadingChain bestIterationSolution = executeIteration(container, cargoTypes, tau);
             if (bestIterationSolution != null) {
-                // 2.2: אידוי פרומונים - הנמלים הישנים קהים
+                //  אידוי פרומונים - הנמלים הישנים קהים
                 pheromoneManager.applyGlobalEvaporation();
-                // 2.3: חיזוק פרומונים - הנתיב הטוב מקבל ריח חזק
+                //  חיזוק פרומונים - הנתיב הטוב מקבל ריח חזק
                 reinforcePheromoneFromSolution(bestIterationSolution, tau);
-                // 2.4: עדכון הפתרון הגלובלי
                 bestGlobalSolution = updateGlobalBestIfNeeded(bestGlobalSolution, bestIterationSolution, tau);
             }
         }
-        // ===== שלב 3: סיום =====
+        // סיום
         cleanupGlobalState();
         outputResults(bestGlobalSolution);
         return bestGlobalSolution;
     }
-
+    @PreDestroy
+    public void shutdown() {
+        executor.shutdown();
+    }
 
     private LoadingChain executeIteration(Container container,
                                           List<CargoType> cargoTypes, int tau) {
@@ -54,7 +67,7 @@ public class HybridLoadingSystem {
                 List<CargoType> antCargoes = deepCopyCargoes(cargoTypes);
                 // engine חדש לכל נמלה כי StrategySelector הוא per-thread
                 AntLoadingEngine localEngine = new AntLoadingEngine(
-                        spaceManager, pheromoneManager, gsm, asm);
+                        spaceManager, pheromoneManager, gsm, asm, pruningManager);
                 return localEngine.executeAntLoading(container, antCargoes, tau);
             }));
         }
@@ -84,7 +97,7 @@ public class HybridLoadingSystem {
         if (solution == null || solution.getSteps() == null) {
             return;
         }
-        double globalDelta = solution.getVUR() / solution.getSteps().size();
+        double globalDelta = pheromoneManager.getRho() * (solution.getVUR()/2 - pheromoneManager.getTau0());
         // עבור כל צעד בשרשרת הטעינה
         for (LoadingChain.PlacedBoxInfo step : solution.getSteps()) {
             // חזק את הפרומון של בחירה זו
@@ -111,11 +124,24 @@ public class HybridLoadingSystem {
             int tau) {
 
         if (isBetterSolution(newSolution, current)) {
-            // דוגמה הודעה: "Iteration 25: New Global Best VUR = 94.31%"
             logger.info("Iteration " + tau + ": New Global Best VUR: " +
                             String.format("%.2f", newSolution.getVUR() * 100) + "%");
+            stagnationCounter = 0;
             return newSolution;
         }
+        stagnationCounter ++;
+//        if (stagnationCounter >= STAGNATION_THRESHOLD) {
+//            logger.warn("Stagnation detected at iteration " + tau + ". Shaking up pheromones!");
+//
+//            // 1. הורדה דרסטית של הפרומונים הקיימים
+//            pheromoneManager.reset();
+//
+//            // 2. איפוס טבלת הגיזום כדי למנוע מנמלים חדשות למות בגלל היסטוריה ישנה
+//            pruningManager.reset();
+//
+//            // איפוס המונה כדי להתחיל לספור מחדש אחרי הניעור
+//            stagnationCounter = 0;
+//        }
         return current;
     }
 
@@ -146,7 +172,8 @@ public class HybridLoadingSystem {
 
     private void cleanupGlobalState() {
         Global.MIN_DIM = Double.MAX_VALUE;
-        executor.shutdown();
+        pheromoneManager.reset();
+        pruningManager.reset();
     }
 //    private LoadingChain executeAntLoading(Container container, List<CargoType> cargoTypes, int tau) {
 //        LoadingChain chain = new LoadingChain(container);
