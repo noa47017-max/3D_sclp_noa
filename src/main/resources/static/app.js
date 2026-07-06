@@ -204,9 +204,8 @@ async function authenticatedFetch(url, options = {}) {
     return response;
 }
  
-// ─────────────────────────────────────────────────────────────
+
 //  התחברות
-// ─────────────────────────────────────────────────────────────
 const loginBtn = document.getElementById('loginBtn');
 if (loginBtn) {
     loginBtn.onclick = async () => {
@@ -453,7 +452,7 @@ window.loadAndViewHistory = async (id) => {
         showScreen('result');
 
         // ברירת מחדל — אין מידות מכולה בתשובת השרת הנוכחית
-        const container = { l: 587, w: 235, h: 220 };
+        const container = { l: data.containerL, w: data.containerW, h: data.containerH };
         init3D(data.placements, container);
 
     } catch (err) {
@@ -467,9 +466,7 @@ window.viewSpecificHistory = (steps, container) => {
     init3D(steps, container);
 };
 
-// ═══════════════════════════════════════════════════════════
 //  מסך בנצ'מארק
-// ═══════════════════════════════════════════════════════════
 
 let benchmarkCases = [];
 
@@ -706,7 +703,7 @@ if (printBtn) {
                     <td>${b.cargoType}</td>
                     <td>${b.leftBackBottom[0]}</td><td>${b.leftBackBottom[1]}</td><td>${b.leftBackBottom[2]}</td>
                     <td>${b.rightFrontTop[0]}</td><td>${b.rightFrontTop[1]}</td><td>${b.rightFrontTop[2]}</td>
-                    <td>${b.remainingSpace}</td>
+                    <td>${b.direction}</td>
                 </tr>`);
         });
         win.document.write('</table></body></html>');

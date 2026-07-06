@@ -4,19 +4,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.noa.packer.algorithms.CargoType;
 import com.noa.packer.algorithms.HybridLoadingSystem;
-import com.noa.packer.controllers.PackingController;
+import com.noa.packer.dto.HistoryItemDTO;
 import com.noa.packer.dto.PackingRequestDTO;
 import com.noa.packer.dto.PackingResultDTO;
 import com.noa.packer.models.Box;
 import com.noa.packer.repositories.BoxRepository;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-
 import com.noa.packer.algorithms.LoadingChain;
 import com.noa.packer.models.Container;
 import com.noa.packer.models.PackingResult;
@@ -26,14 +25,22 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 @Service
 public class PackingService {
-    @Autowired
     private PackingResultRepository packingResultRepository;  // ← הזרקה
-    @Autowired
     private ContainerRepository containerRepository;  // ← הזרקה
-    @Autowired
     private BoxRepository boxRepository;
+    private final HybridLoadingSystem hybridLoadingSystem;
 
-    public ObjectId saveResult(ObjectId userId, LoadingChain chain) {
+
+    @Autowired
+    public PackingService(HybridLoadingSystem hybridLoadingSystem,
+                          ContainerRepository containerRepository,
+                          BoxRepository boxRepository, PackingResultRepository packingResultRepository) {
+        this.hybridLoadingSystem = hybridLoadingSystem;
+        this.containerRepository = containerRepository;
+        this.boxRepository = boxRepository;
+        this.packingResultRepository = packingResultRepository;
+    }
+    public ObjectId saveResult(LoadingChain chain) {
     List<PackingResult.PlacedBoxData> placements = new ArrayList<>();
 
     for (LoadingChain.PlacedBoxInfo step : chain.getSteps()) {
@@ -42,7 +49,6 @@ public class PackingService {
             step.direction,
             step.leftBackBottom,
             step.rightFrontTop
-            // stateKey ו-remainingSpace לא נשמרים
         ));
     }
     Container container = containerRepository.getById(chain.getContainerID());
@@ -78,7 +84,6 @@ public class PackingService {
     public PackingResultDTO solve(@RequestBody PackingRequestDTO request) {
         try {
 
-
             // 1. חילוץ מידות המכולה
             double L = request.getContainer().get("l");
             double W = request.getContainer().get("w");
@@ -112,12 +117,11 @@ public class PackingService {
             List<CargoType> cargoTypes = convertToCargoTypes(request.getBoxes());
 
             // 5. הפעלת האלגוריתם
-            HybridLoadingSystem system = new HybridLoadingSystem();
-            LoadingChain result = system.startLoadingProcess(container, cargoTypes);
+            LoadingChain result = this.hybridLoadingSystem.startLoadingProcess(container, cargoTypes);
 
             // 6. שמירת התוצאה במסד - רק אם זה לא בנצ'מארק
             if (!request.getIsBenchmark()) {
-                saveResult(userId, result);
+                saveResult(result);
             }
             List<PackingResult.PlacedBoxData> placements = new ArrayList<>();
             for (LoadingChain.PlacedBoxInfo step : result.getSteps()) {
@@ -131,7 +135,7 @@ public class PackingService {
                     container.getVolume(),
                     result.getTotalCargoVolume(), placements
             );
-            return new PackingResultDTO(packingResult);
+            return new PackingResultDTO(packingResult, L,W,H);
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -142,7 +146,45 @@ public class PackingService {
  /**
      * מחזיר את כל הסידורים של משתמש מסוים, מהחדש לישן.
      */
- public List<PackingResult> getHistory(ObjectId userId) {
-     List<ObjectId> containerIds = containerRepository.getContainerIdsByUserId(userId);
-     return packingResultRepository.getByContainerIds(containerIds);
- }}
+     public List<HistoryItemDTO> getHistory(ObjectId userId) {
+         List<ObjectId> containerIds = containerRepository.getContainerIdsByUserId(userId);
+         List<HistoryItemDTO> response = packingResultRepository.getByContainerIds(containerIds).stream().map(item -> {
+             String containerSize = "";
+             if (item.getContainerId() != null) {
+                 Container c = containerRepository.getById(item.getContainerId());
+                 if (c != null) {
+                     containerSize = (int)c.getLength() + " × " + (int)c.getWidth() + " × " + (int)c.getHeight();
+                 }
+             }
+             return new HistoryItemDTO(
+                     item.getId() != null ? item.getId().toHexString() : null,
+                     item.getVur(),
+                     item.getCreatedAt(),
+                     containerSize
+             );
+         }).collect(Collectors.toList());
+         return response;
+     }
+
+    public PackingResultDTO getHistoryItem(String id) {
+        // בדיקת תקינות לפני שניגשים למסד הנתונים
+        if (id == null || id.length() != 24) {
+            throw new IllegalArgumentException("מזהה (ID) חסר או שאינו באורך התקין");
+        }
+
+        try {
+            PackingResult result = packingResultRepository.getById(new ObjectId(id));
+            if (result == null) {
+                // זריקת שגיאה במידה והפריט לא קיים במסד
+                throw new RuntimeException("לא נמצאה תוצאת אריזה עבור המזהה המבוקש");
+            }
+
+            Container container = containerRepository.getById(result.getContainerId());
+            return new PackingResultDTO(result, container.getLength(), container.getWidth(), container.getHeight());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("שגיאה בשליפת נתונים: " + e.getMessage(), e);
+        }
+    }
+}

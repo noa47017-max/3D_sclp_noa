@@ -1,9 +1,13 @@
 package com.noa.packer.models;
 
 import org.bson.types.ObjectId;
-import java.util.Date;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
+@Document(collection = "users")
 public class User {
+    @Id
     private ObjectId id;
 
     // פרטי התחברות

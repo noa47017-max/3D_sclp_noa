@@ -17,17 +17,11 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
 public class HistoryController {
 
     @Autowired
     private PackingService packingService;
 
-    @Autowired
-    private PackingResultRepository resultRepository;
-
-    @Autowired
-    private ContainerRepository containerRepository;
 
     // רשימת היסטוריה — ללא placements
     @GetMapping("/history")
@@ -36,37 +30,20 @@ public class HistoryController {
             return ResponseEntity.badRequest().build();
         }
 
-        List<PackingResult> history = packingService.getHistory(new ObjectId(userId));
-
-        List<HistoryItemDTO> response = history.stream().map(item -> {
-            String containerSize = "";
-            if (item.getContainerId() != null) {
-                Container c = containerRepository.getById(item.getContainerId());
-                if (c != null) {
-                    containerSize = (int)c.getL() + " × " + (int)c.getW() + " × " + (int)c.getH();
-                }
-            }
-            return new HistoryItemDTO(
-                    item.getId() != null ? item.getId().toHexString() : null,
-                    item.getVur(),
-                    item.getCreatedAt(),
-                    containerSize
-            );
-        }).collect(Collectors.toList());
-
+        List<HistoryItemDTO> response = packingService.getHistory(new ObjectId(userId));
         return ResponseEntity.ok(response);
     }
 
     // סידור מלא לפי id — כשלוחצים "צפה"
     @GetMapping("/history/{id}")
     public ResponseEntity<PackingResultDTO> getHistoryItem(@PathVariable String id) {
-        if (id == null || id.length() != 24) {
-            return ResponseEntity.badRequest().build();
+        try {
+            PackingResultDTO result = packingService.getHistoryItem(id);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println("Error in /api/history/{id}: " + e.getMessage());
+            return ResponseEntity.status(500).build();
         }
-
-        PackingResult result = resultRepository.getById(new ObjectId(id));
-        if (result == null) return ResponseEntity.notFound().build();
-
-        return ResponseEntity.ok(new PackingResultDTO(result));
     }
 }

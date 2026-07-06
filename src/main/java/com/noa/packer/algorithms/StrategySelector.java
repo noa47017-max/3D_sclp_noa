@@ -5,16 +5,15 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class StrategySelector {
-    private final GSMStrategy gsm;
-    private final ASMStrategy asm;
-    private final PheromoneManager pheromoneManager;
 
-        public StrategySelector(GSMStrategy gsm, ASMStrategy asm, PheromoneManager pheromoneManager) {
-            this.gsm = gsm;
-            this.asm = asm;
-            this.pheromoneManager = pheromoneManager;
-        }
-        public CargoSelection selectCargoAndOrientation(LoadingChain chain, List<CargoType> cargoTypes,
+    private final LoadingContext ctx;
+    private final ASMStrategy asmStrategy;
+
+    public StrategySelector(LoadingContext ctx) {
+        this.ctx = ctx;
+        this.asmStrategy = new ASMStrategy(ctx);
+    }
+    public CargoSelection selectCargoAndOrientation( LoadingChain chain, List<CargoType> cargoTypes,
                                           Space space, boolean isNewLayer, int tau, String stateKey) {
             if (isNewLayer) {
                 return selectCargoForNewLayer(space, cargoTypes);
@@ -22,7 +21,7 @@ public class StrategySelector {
                 return selectCargoForLayer(chain, cargoTypes, space, tau, stateKey);
             }
         }
-        private CargoSelection selectCargoForNewLayer(Space space, List<CargoType> cargoTypes) {
+        private static CargoSelection selectCargoForNewLayer(Space space, List<CargoType> cargoTypes) {
             CargoType selected = cargoTypes.stream()
                     .filter(c -> c.quantity > 0 && c.canFit(space))
                     .max(Comparator.comparingDouble(CargoType::getVolume))
@@ -31,7 +30,7 @@ public class StrategySelector {
             if (selected == null) {
                 return new CargoSelection(null, null);
             }
-            Orientation bestOri = new OrientationOptimizer().getBestOrientation(space, selected);
+            Orientation bestOri = OrientationOptimizer.getBestOrientation(space, selected);
             return new CargoSelection(selected, bestOri);
         }
 
@@ -42,8 +41,8 @@ public class StrategySelector {
             boolean useGreedy = ThreadLocalRandom.current().nextDouble() <= pTau;
 
             CargoSelection choice = useGreedy ?
-                    gsm.selectCargo(space, cargoTypes, chain.getSteps()) :
-                    asm.selectCargo(space, cargoTypes, stateKey);
+                    GSMStrategy.selectCargo(space, cargoTypes, chain.getSteps()) :
+                    asmStrategy.selectCargo(space, cargoTypes, stateKey);
 
             if (choice != null) {
                 return new CargoSelection(choice.cargo(), choice.orientation());
@@ -52,21 +51,4 @@ public class StrategySelector {
         }
 
 
-//    public boolean shouldRunGreedy(int currentIteration, int maxIterations) {
-//        double rTau = rand.nextDouble(); // R(τ) [5]
-//
-//        // חישוב P(τ) לפי התפלגות נורמלית סטנדרטית (משוואה 12)
-//        double pTau = calculateNormalProbability(currentIteration, maxIterations);
-//        // החלטה: GSM אם R(τ) - P(τ) <= 0, אחרת ASM [5]
-//        return (rTau - pTau) <= 0;
-//    }
-//
-//    private double calculateNormalProbability(int tau, int M) {
-//
-//        double mu = 0;
-//        double sigma = 1.0; // לפי המאמר [1]
-//        // נרמול ה-tau לטווח שבין 0 ל-3 (כדי לכסות את רוב שטח ההתפלגות הנורמלית)
-//        double x = (double) tau / M * 3.0;
-//        return Math.exp(-Math.pow(x - mu, 2) / (2.0 * Math.pow(sigma, 2)));
-//    }
-}
+    }

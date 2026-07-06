@@ -5,20 +5,19 @@ import java.util.Comparator;
 import java.util.List;
 
 public class SpaceState {
-    List<Space> currentLayer;
-    List<Space> nextLayers;
-    List<Space> retrySpaces;
-    SpaceManager spaceManager;
+    List<Space> currentLayer; // חללים בשכבה נוכחית - VU
+    List<Space> nextLayers;// חלל לשכבה הבאה - VI
+    List<Space> retrySpaces;// חללים קטנים למיזוג לשכבות הבאות - VR
     double layerXEnd;
-    List<Space> pendingNew;
+    double sumVR;
 
     public SpaceState() {
         this.currentLayer = new ArrayList<>();
         this.nextLayers = new ArrayList<>();
         this.retrySpaces = new ArrayList<>();
-        this.spaceManager = new SpaceManager();
         this.layerXEnd = -1;
-        this.pendingNew = new ArrayList<>();
+        this.sumVR = 0;
+
     }
     // מיון
     public void sortSpacesByPosition() {
@@ -31,25 +30,14 @@ public class SpaceState {
     // עדכון חללים לאחר הנחה
     public void updateSpacesAfterPlacement(double xMin, double yMin, double zMin,
                                            double xMax, double yMax, double zMax) {
-        // 1. חיתוך — כולם
-        currentLayer = spaceManager.updateSpacesAfterPlacement(currentLayer, xMin, yMin, zMin, xMax, yMax, zMax);
-        retrySpaces = spaceManager.updateSpacesAfterPlacement(retrySpaces, xMin, yMin, zMin, xMax, yMax, zMax);
+        currentLayer = SpaceManager.updateSpacesAfterPlacement(currentLayer, xMin, yMin, zMin, xMax, yMax, zMax);
+        retrySpaces = SpaceManager.updateSpacesAfterPlacement(retrySpaces, xMin, yMin, zMin, xMax, yMax, zMax);
 
-        // 2. מיזוג רק החדשים מול הקיימים
-//        if (!pendingNew.isEmpty()) {
-//            currentLayer = spaceManager.mergeNewInto(currentLayer, pendingNew);
-//            pendingNew.clear();
-//        }
-        currentLayer = spaceManager.mergeSpaces(currentLayer);
+        currentLayer = SpaceManager.mergeSpaces(currentLayer);
     }
 
 
 
-
-   // מיון לפי נפח
-    public void sortSpacesByVolume(List<Space> spaces) {
-        spaces.sort((a, b) -> Double.compare(b.getVolume(), a.getVolume()));
-    }
     //הוספת 3 החללים לאחר הנחת ארגז
     public void addResidualSpaces(Space space, Orientation orientation, boolean isNewLayer) {
 
@@ -72,8 +60,7 @@ public class SpaceState {
             if (isNewLayer) {
                 layerXEnd = frontX;
                 nextLayers.add(new Space(frontX, y, z, frontL, W, H));
-                currentLayer = spaceManager.mergeRetryInto(
-                        currentLayer, retrySpaces);
+                currentLayer = mergeRetryInto();
                 retrySpaces.clear();
             } else if (frontX >= layerXEnd - Global.EPSILON) {
                 // כולו מעבר לגבול → שכבה הבאה
@@ -87,13 +74,27 @@ public class SpaceState {
             }
         }
     }
+    private List<Space> mergeRetryInto() {
 
-    public List<Space> collectAllRemainingSpaces() {
-        List<Space> all = new ArrayList<>();
-        all.addAll(currentLayer);
-        all.addAll(nextLayers);
-        all.addAll(retrySpaces);
-        sortSpacesByVolume(all);
-        return all;
+        List<Space> result = new ArrayList<>(this.currentLayer);
+        for (Space retry : this.retrySpaces) {
+            boolean canMerge = false;
+            for (Space existing : result) {
+                if (SpaceManager.canMergeLeftRight(retry, existing)
+                        || SpaceManager.canMergeFrontRear(retry, existing)
+                        || SpaceManager.canMergeTopBottom(retry, existing)
+                        || SpaceManager.tryOverlapMerge(retry, existing) != null) {
+                    canMerge = true;
+                    break;
+                }
+            }
+            if (canMerge) {
+                result.add(retry);
+            }
+            else {
+                sumVR+=retry.getVolume();
+            }
+        }
+        return SpaceManager.mergeSpaces(result);
     }
 }

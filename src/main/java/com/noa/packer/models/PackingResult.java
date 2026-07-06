@@ -1,11 +1,16 @@
 package com.noa.packer.models;
 
 import org.bson.types.ObjectId;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+
 import java.util.Date;
 import java.util.List;
 
-public class PackingResult {
 
+@Document(collection = "packing_results")
+public class PackingResult {
+    @Id
     private ObjectId id;
     private ObjectId containerId;
     private double   totalCargoVolume;

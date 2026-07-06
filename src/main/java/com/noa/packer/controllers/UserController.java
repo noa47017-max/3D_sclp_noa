@@ -4,11 +4,10 @@ import com.noa.packer.dto.LoginRequest;
 import com.noa.packer.dto.LoginResponse;
 import com.noa.packer.dto.RegisterRequest;
 import com.noa.packer.models.User;
-import com.noa.packer.repositories.UserRepository;
 import com.noa.packer.security.CustomUserDetails;
 import com.noa.packer.services.UserService;
 import com.noa.packer.security.JwtService;
-
+import com.noa.packer.util.SanitizeUtil;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -17,7 +16,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "*")
 public class UserController {
 
     @Autowired
@@ -30,8 +28,8 @@ public class UserController {
     @PostMapping("/register")
     public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
         String result = userService.registerUser(
-                request.getUsername(),
-                request.getEmail(),
+                SanitizeUtil.clean(request.getUsername()),
+                SanitizeUtil.clean(request.getEmail()),
                 request.getPassword()
         );
         return ResponseEntity.ok(result);
@@ -40,7 +38,8 @@ public class UserController {
     //  התחברות מעודכנת עם טוקן
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        User user = userService.getUserAfterLogin(request.getEmail(), request.getPassword());
+        User user = userService.getUserAfterLogin(SanitizeUtil.clean(request.getEmail()),
+                request.getPassword());
 
         if (user != null) {
             CustomUserDetails userDetails = new CustomUserDetails(user);

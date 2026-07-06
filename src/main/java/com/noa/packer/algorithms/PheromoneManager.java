@@ -1,3 +1,177 @@
+//package com.noa.packer.algorithms;
+//import java.util.*;
+//import java.util.concurrent.ConcurrentHashMap;
+//import java.util.concurrent.ConcurrentSkipListMap;
+//import java.util.concurrent.atomic.AtomicInteger;
+//
+//public class PheromoneManager {
+//
+//    // פרמטרים לפי Table 2 במאמר [3]
+//    private final double ALPHA = 1.0;
+//    private final double BETA = 3.0;
+//    private final double RHO = 0.7; // מקדם התנדפות קבוע
+//    private final double RHO_LOCAL = 0.1;  // Local evaporation
+//    private final int Q = 8;
+//    private final double TAU0 = 0.1;
+//    private static final int MAX_TREE_SIZE = 50_000;
+//    private final double DELTA_LOCAL = 0.2;
+//    ConcurrentSkipListMap<String, ConcurrentHashMap<Long, PheromoneNode>> pheromoneTree;
+//    private final AtomicInteger treeSize;
+//
+//    public PheromoneManager() {
+//        this.pheromoneTree = new ConcurrentSkipListMap<>();
+//        this.treeSize = new AtomicInteger(0); // אתחול המונה
+//    }
+//
+//    public double getRho() { return RHO; }
+//    public double getTau0() { return TAU0; }
+//    public double getAlpha() { return ALPHA; }
+//    public double getBeta() { return BETA; }
+//
+//
+//    public String generateStateWord(List<CargoType> allTypes) {
+//        StringBuilder stateBuilder = new StringBuilder(allTypes.size() * (1 + Q));
+//        StringBuilder quantityDomain = new StringBuilder();
+//
+//        for (CargoType type : allTypes) {
+//            // 1. בניית ה-Type Domain: האם הסוג נטען לפחות פעם אחת?
+//            int loadedCount = type.getTotalQuantity() - type.getQuantity();
+//            stateBuilder.append(loadedCount > 0 ? "1" : "0");
+//            // 2. בניית ה-Quantity Domain: הכמות המדויקת שנטענה (בבינארי)
+//            String binQty = Integer.toBinaryString(loadedCount);
+//            // ריפוד אפסים
+//            int paddingNeeded = Q - binQty.length();
+//            for (int i = 0; i < paddingNeeded; i++) {
+//                quantityDomain.append('0');
+//            }
+//            quantityDomain.append(binQty);
+//        }
+//        // שרשור התחומים
+//        return stateBuilder.append(quantityDomain).toString();
+//    }
+//
+//    private static long nodeKey(int cargoId, int direction) {
+//        return ((long) cargoId << 32) | (direction & 0xFFFFFFFFL);
+//    }
+//    public void applyGlobalEvaporation() {
+//        for (ConcurrentHashMap<Long, PheromoneNode> inner : pheromoneTree.values()) {
+//            for (PheromoneNode node : inner.values()) {
+//                double decayed = (1 - RHO) * node.getConcentration() + RHO * TAU0;
+//                node.setConcentration(decayed);
+//            }
+//        }
+//        pruneTreeIfNeeded();
+//    }
+//
+//    private void pruneTreeIfNeeded() {
+//        int currentSize = treeSize.get();
+//        if (currentSize <= MAX_TREE_SIZE) {
+//            return;
+//        }
+//
+//        int numToRemove = currentSize - (int) (MAX_TREE_SIZE * 0.95);
+//
+//        PriorityQueue<Map.Entry<String, ConcurrentHashMap<Long, PheromoneNode>>> worstNodes =
+//                new PriorityQueue<>((a, b) -> {
+//                    double maxA = getMaxConcentration(a.getValue());
+//                    double maxB = getMaxConcentration(b.getValue());
+//                    return Double.compare(maxB, maxA);
+//                });
+//
+//        for (Map.Entry<String, ConcurrentHashMap<Long, PheromoneNode>> entry
+//                : pheromoneTree.entrySet()) {
+//            worstNodes.offer(entry);
+//            if (worstNodes.size() > numToRemove) {
+//                worstNodes.poll();
+//            }
+//        }
+//
+//        int removedCount = 0;
+//        while (!worstNodes.isEmpty()) {
+//            if (pheromoneTree.remove(worstNodes.poll().getKey()) != null) {
+//                removedCount++;
+//            }
+//        }
+//        treeSize.addAndGet(-removedCount);
+//    }
+//
+//    // פונקציית עזר קטנה לחילוץ הריכוז המקסימלי
+//    private double getMaxConcentration(ConcurrentHashMap<Long, PheromoneNode> inner) {
+//        if (inner == null || inner.isEmpty()) return 0.0;
+//        double max = 0.0;
+//        for (PheromoneNode node : inner.values()) {
+//            double c = node.getConcentration();
+//            if (c > max) max = c;
+//        }
+//        return max;
+//    }
+//
+//    //  GLOBAL - אחרי איטרציה
+//    public void updateGlobalPheromone(String stateKey, int cargoId, int direction,
+//                                      double x, double y, double z,
+//                                      double x2, double y2, double z2,
+//                                      double currentVR, double delta) {
+//        ConcurrentHashMap<Long, PheromoneNode> inner =
+//                pheromoneTree.computeIfAbsent(stateKey, k -> {
+//                    treeSize.incrementAndGet();
+//                    return new ConcurrentHashMap<>();
+//                });
+//
+//        long key = nodeKey(cargoId, direction);
+//
+//        inner.compute(key, (k, existing) -> {
+//            if (existing != null) {
+//                existing.setConcentration(existing.getConcentration() + delta);
+//                // שמור את המיקום עם ה-VR הנמוך ביותר
+//                if (currentVR < existing.getVr()) {
+//                    existing.setVR(currentVR);
+//                    existing.setDirection(direction);
+//                    existing.setLeftBackBottom(new double[]{x, y, z});
+//                }
+//                return existing;
+//            } else {
+//                return new PheromoneNode(
+//                        cargoId, direction,
+//                        x, y, z, x2, y2, z2,
+//                        currentVR, TAU0 + delta);
+//            }
+//        });
+//    }
+//    public double getPheromone(String stateKey, int cargoId, int direction) {
+//        var inner = pheromoneTree.get(stateKey);         // O(1)
+//        if (inner != null) {
+//            PheromoneNode node = inner.get(nodeKey(cargoId, direction));  // O(1)
+//            if (node != null) return node.getConcentration();
+//        }
+//        return TAU0;
+//    }
+//
+//
+//    public void depositAndEvaporate(String stateKey, int cargoId,
+//                                    Orientation direction, Space space, double currentVR) {
+//        var inner = pheromoneTree.computeIfAbsent(stateKey, k -> new ConcurrentHashMap<>());
+//        long key = nodeKey(cargoId, direction.id);
+//
+//        inner.compute(key, (k, existing) -> {
+//            if (existing != null) {
+//                existing.setConcentration(
+//                        (1 - RHO_LOCAL) * existing.getConcentration() + RHO_LOCAL * DELTA_LOCAL);
+//                return existing;
+//            }
+//            return new PheromoneNode(cargoId, direction.id,
+//                    space.x, space.y, space.z,
+//                    space.x + direction.l, space.y + direction.w, space.z + direction.h,
+//                    currentVR, TAU0 + DELTA_LOCAL);
+//        });
+//    }
+//
+//
+//    public void reset() {
+//        pheromoneTree.clear();
+//        treeSize.set(0);
+//    }
+//
+//}
 package com.noa.packer.algorithms;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -52,12 +226,12 @@ public class PheromoneManager {
         for (List<PheromoneNode> nodes : pheromoneTree.values()) {
             synchronized (nodes) {
                 for (PheromoneNode node : nodes) {
-                double currentPhero = node.getConcentration();
-                // אידוי אגרסיבי במיוחד
-                node.setConcentration(currentPhero * shakeUpFactor);
+                    double currentPhero = node.getConcentration();
+                    // אידוי אגרסיבי במיוחד
+                    node.setConcentration(currentPhero * shakeUpFactor);
+                }
             }
         }
-    }
     }
     public void applyGlobalEvaporation() {
         for (List<PheromoneNode> nodes : pheromoneTree.values()) {
@@ -202,5 +376,4 @@ public class PheromoneManager {
             }
         }
     }
-
 }

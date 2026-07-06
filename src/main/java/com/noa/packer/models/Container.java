@@ -1,9 +1,12 @@
 package com.noa.packer.models;
 
 import org.bson.types.ObjectId;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-public class Container extends Box {
-
+@Document(collection = "containers")
+public class Container {
+    @Id
     private ObjectId id;
     private ObjectId userId;
     private double   length;

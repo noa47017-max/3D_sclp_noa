@@ -13,15 +13,5 @@ public class Space {
     }
 
     public double getVolume() { return L * W * H; }
-
-    // יצירת חלל עליון (Top)
-    public Space getTopResidual(Orientation o) { return new Space(x, y, z + o.h, o.l, o.w, H - o.h); }
-
-    // יצירת חלל ימני (Right)
-    public Space getRightResidual(Orientation o) { return new Space(x, y + o.w, z, o.l, W - o.w, H); }
-
-    // יצירת חלל קדמי (Front)
-    public Space getFrontResidual(Orientation o) { return new Space(x + o.l, y, z, L - o.l, W, H); }
-    
 }
 

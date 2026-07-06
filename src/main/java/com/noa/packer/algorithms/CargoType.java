@@ -15,14 +15,12 @@ public class CargoType {
         this.allowedOrientations = getPossibleOrientations(allowedOrientations);
         this.totalQuantity = q;
     }
+
     public CargoType(CargoType c) {
-        this.id = c.id; this.l = c.l; this.w = c.w; this.h = c.h; this.quantity = c.quantity; this.allowedOrientations = c.allowedOrientations;
+        this.id = c.id; this.l = c.l; this.w = c.w; this.h = c.h; this.quantity = c.quantity;
+        this.allowedOrientations = c.allowedOrientations;
         this.totalQuantity = c.totalQuantity;
     }
-
-    public double getVolume()//החזרת נפח הארגז
-    { return l * w * h; }
-
 
     public boolean canFit(Space space) {
         return !getAllowedOrientations().stream()
@@ -32,9 +30,7 @@ public class CargoType {
                 .findFirst()
                 .isEmpty();
     }
-    public List<Orientation> getAllowedOrientations(){
-        return this.allowedOrientations;
-    }
+
     public List<Orientation> getPossibleOrientations(List<Integer> allowedOrientations) {
         List<Orientation> available = new ArrayList<>();
 
@@ -47,15 +43,20 @@ public class CargoType {
                 new Orientation(5, h, w, l)   // סיבוב על Y+Z
         };
 
-        // סינון רק לפי מה שהוגדר במשתנה allowedOrientations
+        // סינון רק לפי הסיבובים האפשרים שהתקבלו
         for (int index : allowedOrientations)
              available.add(allSix[index]);
         return available;
     }
     public void decreaseQuantity() {
         if (this.quantity > 0) {
-            this.quantity = this.quantity - 1; // או בקיצור: quantity--;
+            this.quantity = this.quantity - 1;
         }
+    }
+
+    public double getVolume(){ return l * w * h; }
+    public List<Orientation> getAllowedOrientations(){
+        return this.allowedOrientations;
     }
     public int getQuantity() { return quantity; }
     public int getTotalQuantity() { return totalQuantity; }

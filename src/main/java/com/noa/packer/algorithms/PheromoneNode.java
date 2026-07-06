@@ -3,12 +3,11 @@ public class PheromoneNode {
     int cargoId;              // סוג המטען
     int d;              // כיוון ההעמסה
     double[] leftBackBottom; // xB, yB, zB
-    double xT, yT, zT;
-    // קואורדינטות פינה עליונה (אחרי התאמת תנוחה)
+    double xT, yT, zT; // קואורדינטות פינה עליונה (אחרי התאמת תנוחה)
     double vr;
     double concentration;        // נפח שנותר בשכבה (Remaining Space)
 
-    public  PheromoneNode(int cargoId, int d, double xB, double yB, double zB,
+    public PheromoneNode(int cargoId, int d, double xB, double yB, double zB,
                             double xT, double yT, double zT, double vr,  double concentration) {
         this.cargoId = cargoId;
         this.d = d;
@@ -22,9 +21,8 @@ public class PheromoneNode {
         this.cargoId = cargoId;
         this.d = direction;
         this.concentration = initialConcentration;
-        // ערכי ברירת מחדל הגיוניים למניעת באגים:
-        this.vr = Double.MAX_VALUE; // ככה כל VR אמיתי שיוכנס בעתיד יהיה קטן ממנו ויעקוף אותו
-        this.leftBackBottom = new double[]{-1.0, -1.0, -1.0}; // מיקום לא חוקי זמני
+        this.vr = Double.MAX_VALUE;
+        this.leftBackBottom = new double[]{-1.0, -1.0, -1.0};
         this.xT = -1.0; this.yT = -1.0; this.zT = -1.0;
 
     }
@@ -36,8 +34,6 @@ public class PheromoneNode {
     public void setDirection(int direction) { this.d = direction; }
     public void setLeftBackBottom(double[] es) { this.leftBackBottom = es;}
     public void setVR(double currentVR) {this.vr = currentVR;}
-
-
 
 }
 

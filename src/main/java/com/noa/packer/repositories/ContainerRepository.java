@@ -1,71 +1,37 @@
 package com.noa.packer.repositories;
 
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
-import com.noa.packer.config.MongoConnection;
 import com.noa.packer.models.Container;
-import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Repository;
 
-import java.util.ArrayList;
 import java.util.List;
-
-import static com.mongodb.client.model.Filters.eq;
+import java.util.stream.Collectors;
 
 @Repository
 public class ContainerRepository {
 
-    private final MongoCollection<Document> collection;
+    private final MongoTemplate mongoTemplate;
 
-    public ContainerRepository() {
-        MongoDatabase db = MongoConnection.connect();
-        this.collection  = db.getCollection("containers");
+    public ContainerRepository(MongoTemplate mongoTemplate) {
+        this.mongoTemplate = mongoTemplate;
     }
 
-    // ── המרות ────────────────────────────────────
-    private Document containerToDocument(Container c) {
-        return new Document()
-            .append("userId",    c.getUserId())
-            .append("length",    c.getLength())
-            .append("width",     c.getWidth())
-            .append("height",    c.getHeight())
-            .append("volume",    c.getVolume());
+    public Container save(Container container) {
+        return mongoTemplate.save(container);
     }
 
-    private Container documentToContainer(Document doc) {
-        Container c = new Container();
-        c.setId(doc.getObjectId("_id"));
-        c.setUserId(doc.getObjectId("userId"));
-        c.setLength(doc.getDouble("length"));
-        c.setWidth(doc.getDouble("width"));
-        c.setHeight(doc.getDouble("height"));
-        c.setVolume(doc.getDouble("volume"));
-        return c;
-    }
-
-    // ➕ שמירת מכולה חדשה
-    public ObjectId save(Container container) {
-        Document doc = containerToDocument(container);
-        collection.insertOne(doc);
-        ObjectId newId = doc.getObjectId("_id");
-        container.setId(newId);
-        System.out.println("Container saved: ");
-        return newId;
+    public Container getById(ObjectId id) {
+        return mongoTemplate.findById(id, Container.class);
     }
 
     public List<ObjectId> getContainerIdsByUserId(ObjectId userId) {
-        List<ObjectId> ids = new ArrayList<>();
-        for (Document doc : collection.find(eq("userId", userId))) {
-            ids.add(doc.getObjectId("_id"));
-        }
-        return ids;
+        Query query = new Query(Criteria.where("userId").is(userId));
+        List<Container> containers = mongoTemplate.find(query, Container.class);
+        return containers.stream()
+                .map(Container::getId)
+                .collect(Collectors.toList());
     }
-
-    // 🔍 מכולה לפי ID
-    public Container getById(ObjectId id) {
-        Document doc = collection.find(eq("_id", id)).first();
-        return doc != null ? documentToContainer(doc) : null;
-    }
-
 }

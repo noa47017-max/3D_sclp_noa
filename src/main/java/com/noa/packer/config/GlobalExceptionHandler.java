@@ -17,4 +17,10 @@ public class GlobalExceptionHandler {
                 .orElse("שגיאה בנתונים שהוזנו");
         return ResponseEntity.badRequest().body(message);
     }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleGeneral(Exception ex) {
+        ex.printStackTrace();
+        return ResponseEntity.status(500).body("שגיאת שרת: " + ex.getMessage());
+    }
 }
