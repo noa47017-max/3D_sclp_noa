@@ -96,8 +96,8 @@ src/main/resources/static/   # Frontend: index.html, app.js, style.css
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/noa47017-max/3D_sclp_noa.git
-   cd 3D_sclp_noa
+   git clone https://github.com/noa47017-max/3d-container-loading-aco.git
+   cd 3d-container-loading-aco
    ```
 
 2. **Create the configuration file**
