@@ -12,7 +12,6 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -47,21 +46,5 @@ public class UserController {
             return ResponseEntity.ok(new LoginResponse(token, user.getId().toString(), user.getUsername()));
         }
         return ResponseEntity.ok(new LoginResponse("אימייל או סיסמא שגויים"));
-    }
-    //  בקשת שחזור סיסמא (משתמש בטוקן פנימי של המערכת לשחזור, לא קשור ל-JWT)
-    @PostMapping("/forgot-password")
-    public ResponseEntity<String> forgotPassword(@RequestBody Map<String, String> body) {
-        String result = userService.requestPasswordReset(body.get("email"));
-        return ResponseEntity.ok(result);
-    }
-
-    //  איפוס סיסמא
-    @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(@RequestBody Map<String, String> body) {
-        String result = userService.resetPassword(
-            body.get("token"),
-            body.get("newPassword")
-        );
-        return ResponseEntity.ok(result);
     }
 }

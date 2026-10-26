@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 import com.noa.packer.algorithms.CargoType;
@@ -15,6 +17,8 @@ import com.noa.packer.models.Box;
 import com.noa.packer.repositories.BoxRepository;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import com.noa.packer.algorithms.LoadingChain;
 import com.noa.packer.models.Container;
@@ -29,18 +33,23 @@ public class PackingService {
     private ContainerRepository containerRepository;  // ← הזרקה
     private BoxRepository boxRepository;
     private final HybridLoadingSystem hybridLoadingSystem;
-
+    private final Executor userRequestsExecutor;
 
     @Autowired
     public PackingService(HybridLoadingSystem hybridLoadingSystem,
                           ContainerRepository containerRepository,
-                          BoxRepository boxRepository, PackingResultRepository packingResultRepository) {
+                          BoxRepository boxRepository, PackingResultRepository packingResultRepository,
+                          @Qualifier("userRequestsExecutor") Executor userRequestsExecutor) {
         this.hybridLoadingSystem = hybridLoadingSystem;
         this.containerRepository = containerRepository;
         this.boxRepository = boxRepository;
         this.packingResultRepository = packingResultRepository;
+        this.userRequestsExecutor = userRequestsExecutor;
+
     }
-    public ObjectId saveResult(LoadingChain chain) {
+
+   // שמירת ה PackinkResult במסד הנתונים
+   public ObjectId saveResult(LoadingChain chain) {
     List<PackingResult.PlacedBoxData> placements = new ArrayList<>();
 
     for (LoadingChain.PlacedBoxInfo step : chain.getSteps()) {
@@ -54,14 +63,14 @@ public class PackingService {
     Container container = containerRepository.getById(chain.getContainerID());
     PackingResult result = new PackingResult(
     chain.getContainerID(),
-    container.getVolume(),        // containerVolume
-    chain.getTotalCargoVolume(),  // totalCargoVolume
+    container.getVolume(),
+    chain.getTotalCargoVolume(),
     placements
     );
    
 
     return packingResultRepository.save(result);
-}
+    }
 
 
     private List<CargoType> convertToCargoTypes(List<Map<String, Object>> boxes) {
@@ -81,9 +90,9 @@ public class PackingService {
         }
         return cargoTypes;
     }
-    public PackingResultDTO solve(@RequestBody PackingRequestDTO request) {
-        try {
 
+    public CompletableFuture<PackingResultDTO> solve(PackingRequestDTO request) {
+        return CompletableFuture.supplyAsync(() -> {
             // 1. חילוץ מידות המכולה
             double L = request.getContainer().get("l");
             double W = request.getContainer().get("w");
@@ -136,16 +145,12 @@ public class PackingService {
                     result.getTotalCargoVolume(), placements
             );
             return new PackingResultDTO(packingResult, L,W,H);
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("Error in /api/solve: " + e.getMessage());
-            throw new RuntimeException("שגיאה בחישוב: " + e.getMessage(), e);
-        }
+        }, userRequestsExecutor);
+
     }
- /**
-     * מחזיר את כל הסידורים של משתמש מסוים, מהחדש לישן.
-     */
+
+
+    //מחזיר את כל הסידורים של משתמש מסוים, מהחדש לישן
      public List<HistoryItemDTO> getHistory(ObjectId userId) {
          List<ObjectId> containerIds = containerRepository.getContainerIdsByUserId(userId);
          List<HistoryItemDTO> response = packingResultRepository.getByContainerIds(containerIds).stream().map(item -> {
@@ -165,6 +170,7 @@ public class PackingService {
          }).collect(Collectors.toList());
          return response;
      }
+
 
     public PackingResultDTO getHistoryItem(String id) {
         // בדיקת תקינות לפני שניגשים למסד הנתונים

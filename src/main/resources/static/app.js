@@ -8,7 +8,7 @@ let lastCalculatedData = [];
 let currentUserId = null;
 let jwtToken = null;
 
-// ─── הגנת XSS + ולידציה ───
+//  הגנת XSS + ולידציה
 function sanitize(str) {
     if (typeof str !== 'string') return str;
     const div = document.createElement('div');
@@ -33,10 +33,8 @@ const screens = {
     history:   document.getElementById('history-screen')
 };
  
-// ─────────────────────────────────────────────────────────────
 //  showScreen — עם ניהול היסטוריית דפדפן
 //  addToHistory=false מועבר כשהקריאה מגיעה מ-popstate או initSession
-// ─────────────────────────────────────────────────────────────
 export function showScreen(screenName, addToHistory = true) {
     // Guard: מסכים מוגנים ללא אימות
     const protectedScreens = ['menu', 'creator', 'result', 'benchmark', 'history'];
@@ -64,9 +62,7 @@ export function showScreen(screenName, addToHistory = true) {
 }
 window.showScreen = showScreen;
  
-// ─────────────────────────────────────────────────────────────
 //  ניהול סשן — localStorage
-// ─────────────────────────────────────────────────────────────
 const LS_TOKEN    = 'clp_token';
 const LS_USER_ID  = 'clp_userId';
 const LS_USERNAME = 'clp_username';
@@ -172,9 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
  
-// ─────────────────────────────────────────────────────────────
 //  פונקציות עזר
-// ─────────────────────────────────────────────────────────────
 function showError(elementId, message) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -238,9 +232,7 @@ if (loginBtn) {
     };
 }
  
-// ─────────────────────────────────────────────────────────────
 //  הרשמה
-// ─────────────────────────────────────────────────────────────
 const registerBtn = document.getElementById('registerBtn');
 if (registerBtn) {
     registerBtn.onclick = async () => {
@@ -265,7 +257,7 @@ if (registerBtn) {
                 body: JSON.stringify({ username, email, password })
             });
             const result = await response.text();
-            if (response.ok && result.includes("OK")) {
+            if (response.ok && result.includes("בהצלחה")) {
                 showScreen('login');
                 const loginError = document.getElementById('login-error');
                 if (loginError) {

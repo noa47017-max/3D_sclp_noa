@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -17,8 +18,12 @@ import java.util.function.Function;
 @Service
 public class JwtService {
 
-    private static final String SECRET_STRING = "ThisIsMyVerySecretKeyForJwtAuthenticationWhichIsVeryLongAndSecure";
-    private final Key SECRET_KEY = Keys.hmacShaKeyFor(SECRET_STRING.getBytes(StandardCharsets.UTF_8));
+    // המפתח נטען מ-application.properties (jwt.secret) ולא נשמר בקוד
+    private final Key SECRET_KEY;
+
+    public JwtService(@Value("${jwt.secret}") String secret) {
+        this.SECRET_KEY = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+    }
 
     private final long TOKEN_EXPIRATION = 1000 * 60 * 60 * 1; // שעה
     private final long MAX_SESSION_TIME = 1000 * 60 * 60 * 5; // 5 שעות

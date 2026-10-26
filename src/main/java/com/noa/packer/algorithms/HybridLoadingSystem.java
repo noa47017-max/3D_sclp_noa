@@ -20,19 +20,44 @@ public class HybridLoadingSystem {
 
     //  משאבים משותפים
     private static final Logger logger = LoggerFactory.getLogger(HybridLoadingSystem.class);
-    private final ThreadPoolTaskExecutor executor;
+    private final Executor antAlgorithmExecutor;
 
-    @Autowired
-    public HybridLoadingSystem(@Qualifier("antAlgorithmExecutor") ThreadPoolTaskExecutor executor) {
-        this.executor = executor;
+    public HybridLoadingSystem(@Qualifier("antAlgorithmExecutor") Executor antAlgorithmExecutor) {
+        this.antAlgorithmExecutor = antAlgorithmExecutor;
     }
 
     public LoadingChain startLoadingProcess(Container container, List<CargoType> cargoTypes) {
         LoadingContext ctx = new LoadingContext(cargoTypes);
         LoadingChain bestGlobalSolution = null;
         for (int tau = 0; tau < Global.M; tau++) {
-            // הרצת הנמלים
-            LoadingChain bestIterationSolution = executeIteration(ctx, container, cargoTypes, tau);
+            final int iteration = tau;
+            //  הרצת הנמלים במקביל
+            List<CompletableFuture<LoadingChain>> antTasks = new ArrayList<>(Global.m);
+
+            for (int i = 0; i < Global.m; i++) {
+                CompletableFuture<LoadingChain> antTask = CompletableFuture.supplyAsync(() -> {
+                    // יצירת עותק לנתונים כדי למנוע התנגשויות בין התהליכונים
+                    List<CargoType> antCargoes = deepCopyCargoes(cargoTypes);
+                    AntLoadingEngine engine = new AntLoadingEngine(ctx, container, antCargoes, iteration);
+                    return engine.executeAntLoading();
+
+                }, antAlgorithmExecutor); // שימוש ב-Pool המהיר של האלגוריתם
+
+                antTasks.add(antTask);
+            }
+
+            //  איסוף התוצאות מכל הנמלים ומציאת הפתרון הטוב ביותר
+            LoadingChain bestIterationSolution = null;
+            for (CompletableFuture<LoadingChain> task : antTasks) {
+                try {
+                    LoadingChain result = task.join();
+                    if (isBetterSolution(result, bestIterationSolution)) {
+                        bestIterationSolution = result;
+                    }
+                } catch (CompletionException e) {
+                    logger.error("Ant failed in iteration {}", iteration, e.getCause());
+                }
+            }
             if (bestIterationSolution != null) {
                 //  אידוי פרומונים
                 ctx.pheromones().applyGlobalEvaporation();
@@ -43,35 +68,9 @@ public class HybridLoadingSystem {
         }
         // סיום
         outputResults(bestGlobalSolution);
+        ctx.pheromones().reset();
+        ctx.pruning().reset();
         return bestGlobalSolution;
-    }
-
-    private LoadingChain executeIteration(LoadingContext ctx, Container container,
-                                          List<CargoType> cargoTypes, int tau) {
-
-        List<Future<LoadingChain>> futures = new ArrayList<>();
-
-        for (int antId = 0; antId < Global.m; antId++) {
-            futures.add(executor.submit(() -> {
-                List<CargoType> antCargoes = deepCopyCargoes(cargoTypes);
-                // engine חדש לכל נמלה כי StrategySelector הוא per-thread
-                AntLoadingEngine engine = new AntLoadingEngine(ctx, container, antCargoes, tau);
-                return engine.executeAntLoading();
-            }));
-        }
-
-        LoadingChain bestIterationSolution = null;
-        for (Future<LoadingChain> future : futures) {
-            try {
-                LoadingChain result = future.get();
-                if (isBetterSolution(result, bestIterationSolution)) {
-                    bestIterationSolution = result;
-                }
-            } catch (InterruptedException | ExecutionException e) {
-                logger.error("Ant execution failed", e);
-            }
-        }
-        return bestIterationSolution;
     }
 
     private List<CargoType> deepCopyCargoes(List<CargoType> original) {
@@ -81,12 +80,10 @@ public class HybridLoadingSystem {
     }
 
     private void reinforcePheromoneFromSolution(LoadingContext ctx,LoadingChain solution, int tau) {
-        // בדוק שלא יש null
         if (solution == null || solution.getSteps() == null) {
             return;
         }
         double globalDelta =ctx.pheromones().getRho() * (solution.getVUR()/2 - ctx.pheromones().getTau0());
-        // עבור כל צעד בשרשרת הטעינה
         for (LoadingChain.PlacedBoxInfo step : solution.getSteps()) {
             // חזק את הפרומון של בחירה זו
             ctx.pheromones().updateGlobalPheromone(

@@ -1,0 +1,19 @@
+# העתיקו קובץ זה ל-application.properties ומלאו את הערכים שלכם.
+# Copy this file to application.properties and fill in your own values.
+
+# HTTPS
+# Generate a self-signed keystore with:
+#   keytool -genkeypair -alias springboot -keyalg RSA -keysize 2048 -storetype PKCS12 -keystore keystore.p12 -validity 3650
+server.port=8443
+server.ssl.key-store=file:keystore.p12
+server.ssl.key-store-password=YOUR_KEYSTORE_PASSWORD
+server.ssl.key-store-type=PKCS12
+server.ssl.key-alias=springboot
+
+# MongoDB Atlas
+spring.data.mongodb.uri=mongodb+srv://USERNAME:PASSWORD@CLUSTER.mongodb.net/DATABASE
+
+# JWT signing key - a random string of at least 32 characters
+jwt.secret=CHANGE_ME_TO_A_LONG_RANDOM_STRING_OF_AT_LEAST_32_CHARS
+
+spring.mvc.async.request-timeout=1260000

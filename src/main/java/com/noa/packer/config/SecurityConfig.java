@@ -31,20 +31,24 @@ public class SecurityConfig {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
-                // בתוך SecurityConfig.java, תחת המתודה securityFilterChain:
                 .authorizeHttpRequests(auth -> auth
-                        // 🌟 הוסף את השורה הזו כדי לאפשר ל-Preflight לעבור
+                        // 🌟 1. התיקון הקריטי ל-403 האסינכרוני (Spring Security 6 ומעלה)
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
+
+                        // מאפשר לבקשות Preflight (OPTIONS) לעבור בצורה חלקה
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
 
-                        .requestMatchers("/api/users/login", "/api/users/register", "/favicon.ico", "/solve", "/error").permitAll()
+                        //  2. נתיבים ציבוריים
+                        .requestMatchers("/api/users/login", "/api/users/register", "/favicon.ico", "/error").permitAll()
                         .requestMatchers("/", "/index.html", "/app.js", "/style.css").permitAll()
+
+                        // כל שאר הנתיבים (כולל /api/solve אם הוא דורש טוקן) יחייבו אימות JWT
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .addFilterBefore(jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(rateLimitFilter,
-                        JwtAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
+
         return http.build();
     }
 

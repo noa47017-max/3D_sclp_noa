@@ -1,42 +1,54 @@
-### IntelliJ IDEA ###
+### Build output ###
+target/
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
-
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
 bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 
-### NetBeans ###
+### IDEs ###
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+.apt_generated
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
 
-### VS Code ###
-.vscode/
+### Tooling (Copilot Java upgrade etc.) ###
+.github/java-upgrade/
+.github/modernize/
 
-### Mac OS ###
+### OS ###
 .DS_Store
+Thumbs.db
+desktop.ini
 
+### Logs & JVM crash dumps ###
+*.log
+hs_err_pid*
+replay_pid*
+
+### Secrets - never commit ###
+# הגדרות שרת וסיסמאות (יש להעתיק מ-application.properties.example)
+application.properties
+application-*.properties
+!application.properties.example
+.env
 # מפתחות הצפנה (HTTPS)
 *.p12
-localhost.crt
-
-# הגדרות שרת וסיסמאות
-application.properties
-
-# קבצי זמניים של סביבת העבודה
-/target/
-.idea/
-.vscode/
-*.iml
+*.jks
+*.pem
+*.key
+*.crt

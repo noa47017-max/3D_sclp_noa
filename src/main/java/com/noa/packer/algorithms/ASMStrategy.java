@@ -7,12 +7,12 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class ASMStrategy {
 
-    private final LoadingContext ctx;
-
+    private LoadingContext ctx;
 
     public ASMStrategy(LoadingContext ctx) {
         this.ctx = ctx;
     }
+
     public CargoSelection selectCargo(Space space, List<CargoType> cargoes, String stateKey) {
         Map<CargoSelection, Double> weights = new HashMap<>();
         double totalWeight = 0;
@@ -38,6 +38,8 @@ public class ASMStrategy {
         CargoSelection result = rouletteWheelSelection(weights, totalWeight);
         return result;
     }
+
+
     private double calculateVisibility( CargoType cargo, Orientation ori, Space space) {
         // ששטח בסיס
         double usedVolume = ori.w * ori.h;
@@ -71,7 +73,7 @@ public class ASMStrategy {
         if (remW > Global.EPSILON*5 && remW < minUsableDim) penalty *= 0.9;
         if (remH > Global.EPSILON*5 && remH < minUsableDim) penalty *= 0.9;
 
-        // 3. שילוב הציון הסופי
+        //  שילוב הציון הסופי
         return (1.0/(1.0 + waste))*0.5+0.5*baseVisibility * bonus * penalty;
     }
 

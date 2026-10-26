@@ -2,30 +2,41 @@ package com.noa.packer.config; // התאימי את החבילה לשלך
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
-public class ThreadingConfig {
+ public class ThreadingConfig {
 
-        @Bean(name = "antAlgorithmExecutor")
-        public ThreadPoolTaskExecutor taskExecutor() {
-            ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    // 1. Thread Pool עבור בקשות המשתמשים הכלליות
+    @Bean(name = "userRequestsExecutor")
+    public ThreadPoolTaskExecutor userRequestsExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2); // 2 בקשות במקביל
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(20); // תור המתנה לבקשות
+        executor.setThreadNamePrefix("UserReq-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
 
-            // בדיקה דינמית של כמות הליבות שיש למחשב/שרת הנוכחי
-            int cores = Runtime.getRuntime().availableProcessors();
+        executor.initialize();
+        return executor;
+    }
 
-            // 1. Core Pool Size - תואם לכמות הליבות הפיזית
-            executor.setCorePoolSize(cores);
+    // 2. Thread Pool חזק עבור האלגוריתם והנמלים
+    @Bean(name = "antAlgorithmExecutor")
+    public ThreadPoolTaskExecutor antAlgorithmExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        int cores = Runtime.getRuntime().availableProcessors();
 
-            // 2. Max Pool Size - פי 2 מכמות הליבות למקרי עומס
-            executor.setMaxPoolSize(cores * 2);
-
-            // 3. Queue Capacity - תור ענק כדי שאף משימה לא תידחה
-            executor.setQueueCapacity(1000);
-
-            executor.setThreadNamePrefix("AntWorker-");
-            executor.initialize();
-            return executor;
-        }
+        // משתמשים בכל הליבות עבור הנמלים, ואפילו קצת יותר
+        executor.setCorePoolSize(cores * 2);
+        executor.setMaxPoolSize(cores * 4);
+        executor.setQueueCapacity(10_000);
+        executor.setThreadNamePrefix("AntWorker-");
+        executor.initialize();
+        return executor;
+    }
 
 }

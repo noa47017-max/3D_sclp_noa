@@ -25,10 +25,6 @@ public class User {
 
     // מטא
     private Date createdAt;
-    
-    // שחזור סיסמא
-    private String resetToken;
-    private Date   resetTokenExpiry;
 
 
     // ── Constructors ──────────────────────────────
@@ -78,9 +74,4 @@ public class User {
 
     public Date getCreatedAt()                   { return createdAt; }
     public void setCreatedAt(Date createdAt)     { this.createdAt = createdAt; }
-    public String getResetToken()                    { return resetToken; }
-    public void   setResetToken(String resetToken)   { this.resetToken = resetToken; }
-
-    public Date getResetTokenExpiry()                        { return resetTokenExpiry; }
-    public void setResetTokenExpiry(Date resetTokenExpiry)   { this.resetTokenExpiry = resetTokenExpiry; }
 }
