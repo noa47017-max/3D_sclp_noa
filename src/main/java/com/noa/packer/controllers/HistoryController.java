@@ -2,10 +2,6 @@ package com.noa.packer.controllers;
 
 import com.noa.packer.dto.HistoryItemDTO;
 import com.noa.packer.dto.PackingResultDTO;
-import com.noa.packer.models.Container;
-import com.noa.packer.models.PackingResult;
-import com.noa.packer.repositories.ContainerRepository;
-import com.noa.packer.repositories.PackingResultRepository;
 import com.noa.packer.services.PackingService;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +9,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")

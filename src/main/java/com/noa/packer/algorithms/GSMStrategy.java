@@ -1,8 +1,5 @@
 package com.noa.packer.algorithms;
-
-import ch.qos.logback.core.joran.sanity.Pair;
 import java.util.List;
-import static java.lang.Math.abs;
 
 public class GSMStrategy {
 

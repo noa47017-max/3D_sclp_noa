@@ -18,14 +18,12 @@ import com.noa.packer.repositories.BoxRepository;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import com.noa.packer.algorithms.LoadingChain;
 import com.noa.packer.models.Container;
 import com.noa.packer.models.PackingResult;
 import com.noa.packer.repositories.ContainerRepository;
 import com.noa.packer.repositories.PackingResultRepository;
-import org.springframework.web.bind.annotation.RequestBody;
 
 @Service
 public class PackingService {

@@ -1,7 +1,5 @@
 package com.noa.packer.repositories;
-
 import com.noa.packer.models.Box;
-import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Repository;
 

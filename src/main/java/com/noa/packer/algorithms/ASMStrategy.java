@@ -1,7 +1,4 @@
 package com.noa.packer.algorithms;
-
-import com.noa.packer.models.Container;
-
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 

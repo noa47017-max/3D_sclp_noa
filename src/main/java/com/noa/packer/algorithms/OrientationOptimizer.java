@@ -1,8 +1,5 @@
 package com.noa.packer.algorithms;
 
-import java.util.List;
-
-import com.noa.packer.models.Container;
 
 public class OrientationOptimizer {
 
